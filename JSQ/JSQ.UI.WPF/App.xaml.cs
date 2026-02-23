@@ -38,11 +38,10 @@ public partial class App : Application
     {
         // ViewModels
         services.AddSingleton<MainViewModel>();
-
-        // Services
-        // TODO: Добавить реальные сервисы
-        services.AddSingleton<IExperimentService, ExperimentServiceStub>();
-
+        
+        // Services - реальный сервис экспериментов
+        services.AddSingleton<IExperimentService, ExperimentService>();
+        
         // Views
         services.AddSingleton<MainWindow>();
     }
