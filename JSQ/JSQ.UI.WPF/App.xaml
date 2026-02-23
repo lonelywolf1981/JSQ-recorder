@@ -1,9 +1,8 @@
 ﻿<Application x:Class="JSQ.UI.WPF.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:JSQ.UI.WPF"
-             StartupUri="MainWindow.xaml">
+             xmlns:local="clr-namespace:JSQ.UI.WPF">
     <Application.Resources>
-         
+
     </Application.Resources>
 </Application>

@@ -12,28 +12,37 @@ namespace JSQ.UI.WPF;
 public partial class App : Application
 {
     public IServiceProvider Services { get; private set; }
-    
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        
-        var services = new ServiceCollection();
-        ConfigureServices(services);
-        Services = services.BuildServiceProvider();
-        
-        var mainWindow = Services.GetRequiredService<MainWindow>();
-        mainWindow.Show();
+
+        try
+        {
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+            Services = services.BuildServiceProvider();
+
+            var mainWindow = Services.GetRequiredService<MainWindow>();
+            mainWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Ошибка запуска: {ex.Message}\n\n{ex.StackTrace}", 
+                "JSQ - Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+        }
     }
-    
+
     private void ConfigureServices(IServiceCollection services)
     {
         // ViewModels
         services.AddSingleton<MainViewModel>();
-        
+
         // Services
         // TODO: Добавить реальные сервисы
         services.AddSingleton<IExperimentService, ExperimentServiceStub>();
-        
+
         // Views
         services.AddSingleton<MainWindow>();
     }
@@ -44,11 +53,11 @@ public partial class App : Application
 /// </summary>
 public class ExperimentServiceStub : IExperimentService
 {
-    public event Action<SystemHealth> HealthUpdated;
-    public event Action<LogEntry> LogReceived;
-    
+    public event Action<SystemHealth> HealthUpdated = delegate { };
+    public event Action<LogEntry> LogReceived = delegate { };
+
     public SystemHealth GetCurrentHealth() => new SystemHealth();
-    
+
     public void StartExperiment(Experiment experiment) { }
     public void PauseExperiment() { }
     public void ResumeExperiment() { }
