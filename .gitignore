@@ -1,0 +1,105 @@
+# === Тестовые данные и артефакты захвата ===
+*.pcapng
+*.dbf
+*.dat
+*.ini
+*.cal
+*.def
+dbf/
+
+# === Временные файлы Windows ===
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+System Volume Information/
+
+# === Временные файлы редакторов и IDE ===
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.pidb
+*.sdf
+*.ipch
+*.aps
+*.ncb
+*.opt
+*.pln
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.checkpoints
+*.cache
+~$*
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# === JetBrains IDEs ===
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# === Visual Studio / .NET ===
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.log
+*.tlog
+*.lastbuildstate
+packages/
+*.nupkg
+*.snk
+App_Data/
+*.mdf
+*.ldf
+
+# === NuGet ===
+*.nuget/
+nuget.config
+
+# === Node.js (если понадобится) ===
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# === Логи и отладка ===
+*.log
+logs/
+dump/
+dumps/
+
+# === Резервные копии ===
+backup/
+backups/
+*.old
+*.orig
+
+# === Загруженные зависимости ===
+lib/
+libs/
+vendor/
