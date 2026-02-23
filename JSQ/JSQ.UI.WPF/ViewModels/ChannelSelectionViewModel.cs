@@ -245,63 +245,88 @@ public partial class ChannelSelectionViewModel : ObservableObject
     
     private void LoadTestChannels()
     {
-        // Генерация тестовых каналов на основе спецификации
-        var channels = new[]
-        {
-            // Пост A - Давление
-            new { Index = 0, Name = "A-Pc", Unit = "bara", Group = ChannelGroup.PostA, Type = ChannelType.Pressure, Desc = "Discharge Pressure" },
-            new { Index = 1, Name = "A-Pe", Unit = "bara", Group = ChannelGroup.PostA, Type = ChannelType.Pressure, Desc = "Suction Pressure" },
-            
-            // Пост A - Температуры
-            new { Index = 16, Name = "A-Tc", Unit = "°C", Group = ChannelGroup.PostA, Type = ChannelType.Temperature, Desc = "Condensing temperature" },
-            new { Index = 17, Name = "A-Te", Unit = "°C", Group = ChannelGroup.PostA, Type = ChannelType.Temperature, Desc = "Evaporation temperature" },
-        };
+        // Генерация всех 134 каналов согласно спецификации
         
-        // Генерируем T1..T30 для каждого поста
+        // Пост A - Давление (2 канала)
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 0, Name = "A-Pc", Description = "Discharge Pressure", Unit = "bara", Group = ChannelGroup.PostA, Type = ChannelType.Pressure, PostFix = "A", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 1, Name = "A-Pe", Description = "Suction Pressure", Unit = "bara", Group = ChannelGroup.PostA, Type = ChannelType.Pressure, PostFix = "A", IsEnabled = true, IsSelected = false });
+        
+        // Пост B - Давление (2 канала)
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 2, Name = "B-Pc", Description = "Discharge Pressure", Unit = "bara", Group = ChannelGroup.PostB, Type = ChannelType.Pressure, PostFix = "B", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 3, Name = "B-Pe", Description = "Suction Pressure", Unit = "bara", Group = ChannelGroup.PostB, Type = ChannelType.Pressure, PostFix = "B", IsEnabled = true, IsSelected = false });
+        
+        // Пост C - Давление (2 канала)
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 4, Name = "C-Pc", Description = "Discharge Pressure", Unit = "bara", Group = ChannelGroup.PostC, Type = ChannelType.Pressure, PostFix = "C", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 5, Name = "C-Pe", Description = "Suction Pressure", Unit = "bara", Group = ChannelGroup.PostC, Type = ChannelType.Pressure, PostFix = "C", IsEnabled = true, IsSelected = false });
+        
+        // Общие каналы (8 каналов)
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 6, Name = "VEL", Description = "Velocity", Unit = "m/s", Group = ChannelGroup.Common, Type = ChannelType.Flow, PostFix = "", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 7, Name = "UR", Description = "Relative Humidity", Unit = "%", Group = ChannelGroup.Common, Type = ChannelType.Humidity, PostFix = "", IsEnabled = true, IsSelected = false });
+        for (int i = 0; i < 5; i++)
+        {
+            AllChannels.Add(new ChannelDefinitionViewModel { Index = 8 + i, Name = $"mA{i + 1}", Description = $"Current loop {i + 1}", Unit = "mA", Group = ChannelGroup.Common, Type = ChannelType.CurrentLoop, PostFix = "", IsEnabled = true, IsSelected = false });
+        }
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 13, Name = "Flux", Description = "Flow rate", Unit = "l/m", Group = ChannelGroup.Common, Type = ChannelType.Flow, PostFix = "", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 14, Name = "UR-sie", Description = "Humidity Siemens", Unit = "%", Group = ChannelGroup.Common, Type = ChannelType.Humidity, PostFix = "", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 15, Name = "T-sie", Description = "Temperature Siemens", Unit = "°C", Group = ChannelGroup.Common, Type = ChannelType.Temperature, PostFix = "", IsEnabled = true, IsSelected = false });
+        
+        // Пост A - Температуры (32 канала: Tc, Te, T1..T30)
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 16, Name = "A-Tc", Description = "Condensing temperature", Unit = "°C", Group = ChannelGroup.PostA, Type = ChannelType.Temperature, PostFix = "A", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = 17, Name = "A-Te", Description = "Evaporation temperature", Unit = "°C", Group = ChannelGroup.PostA, Type = ChannelType.Temperature, PostFix = "A", IsEnabled = true, IsSelected = false });
         for (int i = 1; i <= 30; i++)
         {
-            foreach (var post in new[] { "A", "B", "C" })
-            {
-                var index = post switch
-                {
-                    "A" => 17 + i,
-                    "B" => 53 + i,
-                    "C" => 99 + i,
-                    _ => 0
-                };
-                
-                AllChannels.Add(new ChannelDefinitionViewModel
-                {
-                    Index = index,
-                    Name = $"{post}-T{i}",
-                    Description = $"{post} Temperature {i}",
-                    Unit = "°C",
-                    Group = post switch { "A" => ChannelGroup.PostA, "B" => ChannelGroup.PostB, "C" => ChannelGroup.PostC },
-                    Type = ChannelType.Temperature,
-                    PostFix = post,
-                    IsEnabled = true,
-                    IsSelected = false
-                });
-            }
+            AllChannels.Add(new ChannelDefinitionViewModel { Index = 17 + i, Name = $"A-T{i}", Description = $"Temperature {i}", Unit = "°C", Group = ChannelGroup.PostA, Type = ChannelType.Temperature, PostFix = "A", IsEnabled = true, IsSelected = false });
         }
         
-        // Добавляем электрические каналы
-        foreach (var post in new[] { "A", "B", "C" })
+        // Пост A - Электрические (6 каналов: I, F, V, W, PF, MaxI)
+        int aElecBase = 48;
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = aElecBase++, Name = "A-I", Description = "Current", Unit = "A", Group = ChannelGroup.PostA, Type = ChannelType.Electrical, PostFix = "A", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = aElecBase++, Name = "A-F", Description = "Frequency", Unit = "Hz", Group = ChannelGroup.PostA, Type = ChannelType.Electrical, PostFix = "A", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = aElecBase++, Name = "A-V", Description = "Voltage", Unit = "V", Group = ChannelGroup.PostA, Type = ChannelType.Electrical, PostFix = "A", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = aElecBase++, Name = "A-W", Description = "Power", Unit = "W", Group = ChannelGroup.PostA, Type = ChannelType.Electrical, PostFix = "A", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = aElecBase++, Name = "A-PF", Description = "Power Factor", Unit = "", Group = ChannelGroup.PostA, Type = ChannelType.Electrical, PostFix = "A", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = aElecBase++, Name = "A-MaxI", Description = "Max Current", Unit = "A", Group = ChannelGroup.PostA, Type = ChannelType.Electrical, PostFix = "A", IsEnabled = true, IsSelected = false });
+        
+        // Пост B - Температуры (32 канала: Tc, Te, T1..T30)
+        int bTempBase = 54;
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = bTempBase++, Name = "B-Tc", Description = "Condensing temperature", Unit = "°C", Group = ChannelGroup.PostB, Type = ChannelType.Temperature, PostFix = "B", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = bTempBase++, Name = "B-Te", Description = "Evaporation temperature", Unit = "°C", Group = ChannelGroup.PostB, Type = ChannelType.Temperature, PostFix = "B", IsEnabled = true, IsSelected = false });
+        for (int i = 1; i <= 30; i++)
         {
-            var baseIndex = post switch { "A" => 47, "B" => 84, "C" => 130 };
-            
-            AllChannels.Add(new ChannelDefinitionViewModel
-            {
-                Index = baseIndex,
-                Name = $"{post}-I",
-                Description = $"{post} Current",
-                Unit = "A",
-                Group = post switch { "A" => ChannelGroup.PostA, "B" => ChannelGroup.PostB, "C" => ChannelGroup.PostC },
-                Type = ChannelType.Electrical,
-                PostFix = post,
-                IsEnabled = true,
-                IsSelected = false
-            });
+            AllChannels.Add(new ChannelDefinitionViewModel { Index = bTempBase++, Name = $"B-T{i}", Description = $"Temperature {i}", Unit = "°C", Group = ChannelGroup.PostB, Type = ChannelType.Temperature, PostFix = "B", IsEnabled = true, IsSelected = false });
+        }
+        
+        // Пост B - Электрические (6 каналов)
+        int bElecBase = 86;
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = bElecBase++, Name = "B-I", Description = "Current", Unit = "A", Group = ChannelGroup.PostB, Type = ChannelType.Electrical, PostFix = "B", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = bElecBase++, Name = "B-F", Description = "Frequency", Unit = "Hz", Group = ChannelGroup.PostB, Type = ChannelType.Electrical, PostFix = "B", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = bElecBase++, Name = "B-V", Description = "Voltage", Unit = "V", Group = ChannelGroup.PostB, Type = ChannelType.Electrical, PostFix = "B", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = bElecBase++, Name = "B-W", Description = "Power", Unit = "W", Group = ChannelGroup.PostB, Type = ChannelType.Electrical, PostFix = "B", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = bElecBase++, Name = "B-PF", Description = "Power Factor", Unit = "", Group = ChannelGroup.PostB, Type = ChannelType.Electrical, PostFix = "B", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = bElecBase++, Name = "B-MaxI", Description = "Max Current", Unit = "A", Group = ChannelGroup.PostB, Type = ChannelType.Electrical, PostFix = "B", IsEnabled = true, IsSelected = false });
+        
+        // Пост C - Температуры (32 канала: Tc, Te, T1..T30)
+        int cTempBase = 92;
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = cTempBase++, Name = "C-Tc", Description = "Condensing temperature", Unit = "°C", Group = ChannelGroup.PostC, Type = ChannelType.Temperature, PostFix = "C", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = cTempBase++, Name = "C-Te", Description = "Evaporation temperature", Unit = "°C", Group = ChannelGroup.PostC, Type = ChannelType.Temperature, PostFix = "C", IsEnabled = true, IsSelected = false });
+        for (int i = 1; i <= 30; i++)
+        {
+            AllChannels.Add(new ChannelDefinitionViewModel { Index = cTempBase++, Name = $"C-T{i}", Description = $"Temperature {i}", Unit = "°C", Group = ChannelGroup.PostC, Type = ChannelType.Temperature, PostFix = "C", IsEnabled = true, IsSelected = false });
+        }
+        
+        // Пост C - Электрические (6 каналов)
+        int cElecBase = 124;
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = cElecBase++, Name = "C-I", Description = "Current", Unit = "A", Group = ChannelGroup.PostC, Type = ChannelType.Electrical, PostFix = "C", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = cElecBase++, Name = "C-F", Description = "Frequency", Unit = "Hz", Group = ChannelGroup.PostC, Type = ChannelType.Electrical, PostFix = "C", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = cElecBase++, Name = "C-V", Description = "Voltage", Unit = "V", Group = ChannelGroup.PostC, Type = ChannelType.Electrical, PostFix = "C", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = cElecBase++, Name = "C-W", Description = "Power", Unit = "W", Group = ChannelGroup.PostC, Type = ChannelType.Electrical, PostFix = "C", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = cElecBase++, Name = "C-PF", Description = "Power Factor", Unit = "", Group = ChannelGroup.PostC, Type = ChannelType.Electrical, PostFix = "C", IsEnabled = true, IsSelected = false });
+        AllChannels.Add(new ChannelDefinitionViewModel { Index = cElecBase++, Name = "C-MaxI", Description = "Max Current", Unit = "A", Group = ChannelGroup.PostC, Type = ChannelType.Electrical, PostFix = "C", IsEnabled = true, IsSelected = false });
+        
+        // Системные каналы (4 канала)
+        for (int i = 0; i < 4; i++)
+        {
+            AllChannels.Add(new ChannelDefinitionViewModel { Index = 130 + i, Name = $"SYS-{i + 1}", Description = $"System channel {i + 1}", Unit = "", Group = ChannelGroup.System, Type = ChannelType.System, PostFix = "", IsEnabled = true, IsSelected = false });
         }
         
         ApplyFilters();
