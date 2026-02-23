@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using JSQ.Capture;
 using JSQ.Core.Models;
 using JSQ.Decode;
+using JSQ.Rules;
+using JSQ.Storage;
 
 namespace JSQ.UI.WPF.ViewModels;
 
@@ -14,8 +17,14 @@ public class ExperimentService : IExperimentService, IDisposable
 {
     private readonly TcpCaptureService _captureService;
     private readonly ChannelDecoder _decoder = new ChannelDecoder();
+    private readonly IDatabaseService _dbService;
+    private readonly IBatchWriter _batchWriter;
+    private readonly IExperimentRepository _experimentRepo;
+
     private Experiment? _currentExperiment;
     private bool _isRunning;
+    private IAnomalyDetector? _anomalyDetector;
+    private IAggregationService? _aggregationService;
 
     // Параметры подключения (обновляются через Configure)
     private string _host = "192.168.0.214";
@@ -25,14 +34,25 @@ public class ExperimentService : IExperimentService, IDisposable
     public event Action<SystemHealth>? HealthUpdated;
     public event Action<LogEntry>? LogReceived;
     public event Action<int, double>? ChannelValueReceived;
+    public event Action<AnomalyEvent>? AnomalyDetected;
 
     private CancellationTokenSource? _healthUpdateCts;
+    private int _aggregationTick;
+    private int _checkpointTick;
 
-    public ExperimentService()
+    public ExperimentService(IDatabaseService dbService, IBatchWriter batchWriter, IExperimentRepository experimentRepo)
     {
+        _dbService = dbService;
+        _batchWriter = batchWriter;
+        _experimentRepo = experimentRepo;
+
         _captureService = new TcpCaptureService();
         _captureService.DataReceived += OnDataReceived;
         _captureService.StatusChanged += OnStatusChanged;
+
+        // Инициализируем БД асинхронно
+        Task.Run(async () => { try { await _dbService.InitializeAsync(); } catch { } });
+
         StartHealthUpdates();
     }
 
@@ -45,6 +65,23 @@ public class ExperimentService : IExperimentService, IDisposable
             {
                 try { UpdateHealth(); }
                 catch { /* не даём фоновому циклу упасть */ }
+
+                // Каждые 5 сек — проверяем агрегацию и аномалии
+                _aggregationTick++;
+                if (_aggregationTick >= 5)
+                {
+                    _aggregationTick = 0;
+                    try { ProcessAggregates(); } catch { }
+                }
+
+                // Каждые 30 сек — сохраняем чекпоинт
+                _checkpointTick++;
+                if (_checkpointTick >= 30)
+                {
+                    _checkpointTick = 0;
+                    try { await SaveCheckpointAsync(); } catch { }
+                }
+
                 await Task.Delay(1000, _healthUpdateCts.Token).ConfigureAwait(false);
             }
         }, _healthUpdateCts.Token);
@@ -65,15 +102,38 @@ public class ExperimentService : IExperimentService, IDisposable
         HealthUpdated?.Invoke(health);
     }
 
+    private void ProcessAggregates()
+    {
+        if (_aggregationService == null || _anomalyDetector == null)
+            return;
+
+        foreach (var agg in _aggregationService.GetReadyAggregates())
+        {
+            foreach (var evt in _anomalyDetector.CheckAggregate(agg))
+                AnomalyDetected?.Invoke(evt);
+        }
+
+        foreach (var evt in _anomalyDetector.CheckTimeouts(DateTime.Now))
+            AnomalyDetected?.Invoke(evt);
+    }
+
+    private async Task SaveCheckpointAsync()
+    {
+        if (_currentExperiment == null || !_isRunning)
+            return;
+
+        var checkpoint = new CheckpointData
+        {
+            CheckpointTime = DateTime.Now.ToString("O"),
+            LastSampleTimestamp = DateTime.Now.ToString("O")
+        };
+        await _experimentRepo.SaveCheckpointAsync(_currentExperiment.Id, checkpoint);
+    }
+
     private void OnDataReceived(object sender, byte[] data)
     {
-        // Декодируем значения каналов из сырых байт
         var values = _decoder.Feed(data, data.Length);
-        foreach (var cv in values)
-            ChannelValueReceived?.Invoke(cv.Index, cv.Value);
 
-        // В лог пишем только если данные не поддались декодированию (бинарный мусор)
-        // или если декодер ничего не нашёл — показываем кол-во байт
         if (values.Count == 0)
         {
             LogReceived?.Invoke(new LogEntry
@@ -83,6 +143,38 @@ public class ExperimentService : IExperimentService, IDisposable
                 Source = "TCP",
                 Message = $"Получено {data.Length} байт (не декодировано)"
             });
+            return;
+        }
+
+        // Конвертируем ChannelValue → Sample и отправляем в UI
+        var samples = new List<Sample>(values.Count);
+        foreach (var cv in values)
+        {
+            // double.NaN → -99.0 (маркер «нет данных» для хранилища)
+            double storageValue = double.IsNaN(cv.Value) ? -99.0 : cv.Value;
+            samples.Add(new Sample(cv.Index, storageValue, cv.Timestamp));
+
+            ChannelValueReceived?.Invoke(cv.Index, cv.Value);
+        }
+
+        // Запись и анализ — только если эксперимент активен
+        if (!_isRunning || _currentExperiment == null)
+            return;
+
+        _batchWriter.AddSamples(_currentExperiment.Id, samples);
+
+        if (_aggregationService != null && _anomalyDetector != null)
+        {
+            foreach (var sample in samples)
+            {
+                _aggregationService.AddSample(sample);
+
+                if (sample.IsValid)
+                {
+                    foreach (var evt in _anomalyDetector.CheckValue(sample.ChannelIndex, sample.Value, sample.Timestamp))
+                        AnomalyDetected?.Invoke(evt);
+                }
+            }
         }
     }
 
@@ -113,7 +205,6 @@ public class ExperimentService : IExperimentService, IDisposable
         {
             try
             {
-                // Если уже подключены — отключаемся (например, при смене IP в настройках)
                 if (_captureService.Status == ConnectionStatus.Connected)
                     await _captureService.DisconnectAsync();
 
@@ -153,32 +244,51 @@ public class ExperimentService : IExperimentService, IDisposable
         if (_isRunning)
             return;
 
+        if (string.IsNullOrEmpty(experiment.Id))
+            experiment.Id = Guid.NewGuid().ToString("N");
+
+        experiment.StartTime = DateTime.Now;
+        experiment.State = ExperimentState.Running;
+
         _currentExperiment = experiment;
         _isRunning = true;
 
-        var host = _host;
-        var port = _port;
+        // Создаём детектор аномалий и агрегатор для нового эксперимента
+        _anomalyDetector = new AnomalyDetector(experiment.Id);
+        _aggregationService = new AggregationService(experiment.AggregationIntervalSec);
 
+        // Загружаем правила из ChannelRegistry (MinLimit/MaxLimit из определений каналов)
+        var rules = new List<AnomalyRule>();
+        foreach (var kvp in ChannelRegistry.All)
+        {
+            var def = kvp.Value;
+            if (def.MinLimit.HasValue || def.MaxLimit.HasValue)
+            {
+                rules.Add(new AnomalyRule
+                {
+                    ChannelIndex = kvp.Key,
+                    ChannelName = def.Name,
+                    MinLimit = def.MinLimit,
+                    MaxLimit = def.MaxLimit,
+                    Enabled = true,
+                    DebounceCount = 3
+                });
+            }
+        }
+        _anomalyDetector.LoadRules(rules);
+
+        // Сохраняем эксперимент в БД (игнорируем ошибку — запись данных продолжается)
         Task.Run(async () =>
         {
             try
             {
+                await _experimentRepo.CreateAsync(experiment);
                 LogReceived?.Invoke(new LogEntry
                 {
                     Timestamp = DateTime.Now,
                     Level = "Info",
-                    Source = "System",
-                    Message = $"Подключение к {host}:{port}..."
-                });
-
-                await _captureService.ConnectAsync(host, port);
-
-                LogReceived?.Invoke(new LogEntry
-                {
-                    Timestamp = DateTime.Now,
-                    Level = "Info",
-                    Source = "System",
-                    Message = "Подключено к передатчику"
+                    Source = "Storage",
+                    Message = $"Эксперимент '{experiment.Name}' создан в БД (ID: {experiment.Id})"
                 });
             }
             catch (Exception ex)
@@ -186,26 +296,41 @@ public class ExperimentService : IExperimentService, IDisposable
                 LogReceived?.Invoke(new LogEntry
                 {
                     Timestamp = DateTime.Now,
-                    Level = "Error",
-                    Source = "System",
-                    Message = $"Ошибка подключения: {ex.Message}"
+                    Level = "Warning",
+                    Source = "Storage",
+                    Message = $"Не удалось сохранить эксперимент в БД: {ex.Message}"
                 });
             }
+        });
+
+        LogReceived?.Invoke(new LogEntry
+        {
+            Timestamp = DateTime.Now,
+            Level = "Info",
+            Source = "System",
+            Message = $"Эксперимент '{experiment.Name}' запущен. Запись данных активна."
         });
     }
 
     public void PauseExperiment()
     {
+        if (_currentExperiment != null)
+            Task.Run(() => _experimentRepo.UpdateStateAsync(_currentExperiment.Id, ExperimentState.Paused));
+
         LogReceived?.Invoke(new LogEntry
         {
             Timestamp = DateTime.Now,
             Level = "Warning",
             Source = "System",
-            Message = "Пауза эксперимента"
+            Message = "Эксперимент приостановлен"
         });
     }
 
-    public void ResumeExperiment() { }
+    public void ResumeExperiment()
+    {
+        if (_currentExperiment != null)
+            Task.Run(() => _experimentRepo.UpdateStateAsync(_currentExperiment.Id, ExperimentState.Running));
+    }
 
     public void StopExperiment()
     {
@@ -213,17 +338,48 @@ public class ExperimentService : IExperimentService, IDisposable
             return;
 
         _isRunning = false;
+        var experiment = _currentExperiment;
+        _anomalyDetector = null;
+        _aggregationService = null;
+        _currentExperiment = null;
 
         Task.Run(async () =>
         {
-            await _captureService.DisconnectAsync();
-            LogReceived?.Invoke(new LogEntry
+            try
             {
-                Timestamp = DateTime.Now,
-                Level = "Info",
-                Source = "System",
-                Message = "Эксперимент остановлен"
-            });
+                // Финальный flush буфера записи
+                await _batchWriter.FlushAsync();
+
+                if (experiment != null)
+                {
+                    await _experimentRepo.FinalizeAsync(experiment.Id);
+                    LogReceived?.Invoke(new LogEntry
+                    {
+                        Timestamp = DateTime.Now,
+                        Level = "Info",
+                        Source = "Storage",
+                        Message = $"Эксперимент '{experiment.Name}' завершён и сохранён в БД"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                LogReceived?.Invoke(new LogEntry
+                {
+                    Timestamp = DateTime.Now,
+                    Level = "Error",
+                    Source = "Storage",
+                    Message = $"Ошибка при завершении эксперимента: {ex.Message}"
+                });
+            }
+        });
+
+        LogReceived?.Invoke(new LogEntry
+        {
+            Timestamp = DateTime.Now,
+            Level = "Info",
+            Source = "System",
+            Message = "Эксперимент остановлен"
         });
     }
 
@@ -233,6 +389,8 @@ public class ExperimentService : IExperimentService, IDisposable
     {
         _healthUpdateCts?.Cancel();
         _captureService.Dispose();
+        _batchWriter.Dispose();
+        _dbService.Dispose();
         _healthUpdateCts?.Dispose();
     }
 }

@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JSQ.Core.Models;
+using JSQ.UI.WPF.Views;
 
 namespace JSQ.UI.WPF.ViewModels;
 
@@ -21,6 +22,9 @@ public partial class MainViewModel : ObservableObject
 
     // Быстрый lookup: индекс канала → ChannelStatus (для O(1) обновлений)
     private readonly Dictionary<int, ChannelStatus> _channelMap = new();
+
+    // Каналы с активными аномалиями (статус не сбрасывается до OK пока аномалия активна)
+    private readonly HashSet<int> _anomalousChannels = new();
 
     [ObservableProperty]
     private SystemHealth _systemHealth = new();
@@ -57,6 +61,7 @@ public partial class MainViewModel : ObservableObject
         _experimentService.HealthUpdated += OnHealthUpdated;
         _experimentService.LogReceived += OnLogReceived;
         _experimentService.ChannelValueReceived += OnChannelValueReceived;
+        _experimentService.AnomalyDetected += OnAnomalyDetected;
 
         // Обновление таймера длительности эксперимента
         _durationTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -147,30 +152,79 @@ public partial class MainViewModel : ObservableObject
 
             ch.CurrentValue = double.IsNaN(value) ? (double?)null : value;
             ch.LastUpdateTime = DateTime.Now;
-            ch.Status = double.IsNaN(value) ? HealthStatus.NoData : HealthStatus.OK;
+
+            if (double.IsNaN(value))
+            {
+                ch.Status = HealthStatus.NoData;
+            }
+            else if (!_anomalousChannels.Contains(index))
+            {
+                // Сбрасываем в OK только если нет активной аномалии
+                ch.Status = HealthStatus.OK;
+            }
+        });
+    }
+
+    private void OnAnomalyDetected(AnomalyEvent evt)
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            _anomalousChannels.Add(evt.ChannelIndex);
+
+            if (_channelMap.TryGetValue(evt.ChannelIndex, out var ch))
+                ch.Status = evt.Severity == "Critical" ? HealthStatus.Alarm : HealthStatus.Warning;
+
+            LogEntries.Insert(0, new LogEntry
+            {
+                Timestamp = evt.Timestamp,
+                Level = evt.Severity == "Critical" ? "Error" : "Warning",
+                Source = evt.ChannelName,
+                Message = evt.Message
+            });
+
+            while (LogEntries.Count > 1000)
+                LogEntries.RemoveAt(LogEntries.Count - 1);
         });
     }
 
     [RelayCommand]
     private void NewExperiment()
     {
-        // TODO: открыть диалог создания эксперимента
+        var viewModel = new NewExperimentViewModel();
+        var window = new NewExperimentWindow(viewModel)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        window.ShowDialog();
+
+        if (viewModel.Confirmed)
+        {
+            CurrentExperiment = viewModel.BuildExperiment();
+            StatusMessage = $"Эксперимент '{CurrentExperiment.Name}' создан. Нажмите Запуск.";
+        }
     }
 
     [RelayCommand]
     private void StartExperiment()
     {
+        // Если эксперимент не создан — открываем диалог
         if (CurrentExperiment == null)
-            CurrentExperiment = new Experiment { Name = "Быстрый старт", Operator = "" };
+        {
+            NewExperiment();
+            if (CurrentExperiment == null)
+                return; // пользователь отменил
+        }
 
         _experimentService.Configure(
             _settings.TransmitterHost,
             _settings.TransmitterPort,
             _settings.ConnectionTimeoutMs);
 
-        _experimentService.BeginMonitoring();
+        _experimentService.StartExperiment(CurrentExperiment);
+        _anomalousChannels.Clear();
+
         IsExperimentRunning = true;
-        StatusMessage = $"Мониторинг активен ({_settings.TransmitterHost}:{_settings.TransmitterPort})";
+        StatusMessage = $"Запись активна: '{CurrentExperiment.Name}' ({_settings.TransmitterHost}:{_settings.TransmitterPort})";
         _durationTimer.Start();
     }
 
@@ -185,6 +239,7 @@ public partial class MainViewModel : ObservableObject
     private void StopExperiment()
     {
         _experimentService.StopExperiment();
+        _anomalousChannels.Clear();
         IsExperimentRunning = false;
         StatusMessage = "Эксперимент остановлен";
         _durationTimer.Stop();
@@ -295,6 +350,9 @@ public interface IExperimentService
 
     /// <summary>Канал index получил новое значение value (double.NaN = нет данных).</summary>
     event Action<int, double>? ChannelValueReceived;
+
+    /// <summary>Обнаружена аномалия на одном из каналов.</summary>
+    event Action<AnomalyEvent>? AnomalyDetected;
 
     /// <summary>Задать параметры подключения.</summary>
     void Configure(string host, int port, int timeoutMs);

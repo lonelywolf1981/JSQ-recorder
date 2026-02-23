@@ -3,6 +3,7 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using JSQ.UI.WPF.ViewModels;
 using JSQ.Core.Models;
+using JSQ.Storage;
 
 namespace JSQ.UI.WPF;
 
@@ -55,8 +56,23 @@ public partial class App : Application
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<MainViewModel>();
 
+        // Storage — путь к БД берём из настроек
+        services.AddSingleton<IDatabaseService>(sp =>
+        {
+            var settings = sp.GetRequiredService<SettingsViewModel>();
+            return new SqliteDatabaseService(settings.DatabasePath);
+        });
+        services.AddSingleton<IBatchWriter>(sp =>
+            new BatchWriter(sp.GetRequiredService<IDatabaseService>()));
+        services.AddSingleton<IExperimentRepository>(sp =>
+            new ExperimentRepository(sp.GetRequiredService<IDatabaseService>()));
+
         // Services
-        services.AddSingleton<IExperimentService, ExperimentService>();
+        services.AddSingleton<IExperimentService>(sp =>
+            new ExperimentService(
+                sp.GetRequiredService<IDatabaseService>(),
+                sp.GetRequiredService<IBatchWriter>(),
+                sp.GetRequiredService<IExperimentRepository>()));
 
         // Views
         services.AddSingleton<MainWindow>();
@@ -71,6 +87,7 @@ public class ExperimentServiceStub : IExperimentService
     public event Action<SystemHealth> HealthUpdated = delegate { };
     public event Action<LogEntry> LogReceived = delegate { };
     public event Action<int, double>? ChannelValueReceived;
+    public event Action<AnomalyEvent>? AnomalyDetected;
 
     public SystemHealth GetCurrentHealth() => new SystemHealth();
 
