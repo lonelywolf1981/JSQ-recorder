@@ -196,3 +196,46 @@ RUNNING → [PAUSED] → RUNNING → STOPPED → FINALIZED
 - Для крупных функций создавать feature-ветки: `feature/этап-X-название`
 - История должна быть линейной и читаемой
 - Каждый коммит — рабочая версия с passing build
+
+## Инструменты разработки (доступны на хосте)
+
+### Установленное ПО
+
+| Инструмент | Версия | Путь |
+|------------|--------|------|
+| **Visual Studio** | 2022 Community (v18) | `C:\Program Files\Microsoft Visual Studio\18\Community\` |
+| **MSBuild** | 18.3.0 (.NET Framework) | `C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe` |
+| **.NET Framework** | 4.8.09221 | `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\` |
+| **.NET SDK** | 10.0.103 | `C:\Program Files\dotnet\dotnet.exe` |
+| **Git** | установлен | в PATH |
+
+### Команды сборки
+
+**Для .NET Framework 4.8 (WPF):**
+```powershell
+# Сборка решения
+& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" JSQ.sln /p:Configuration=Release
+
+# Сборка проекта
+& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" JSQ.csproj /p:Configuration=Release
+
+# Очистка
+& "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" JSQ.sln /t:Clean
+```
+
+**Для .NET SDK (если понадобится):**
+```powershell
+dotnet build
+dotnet run
+dotnet test
+dotnet publish -c Release -r win-x64
+```
+
+### Разрешения
+
+**Пользователь предоставил полное разрешение** на использование всех доступных инструментов разработки (MSBuild, .NET SDK, NuGet, Git и др.) для реализации проекта JSQ **без дополнительных запросов подтверждения**.
+
+См. сохранённое подтверждение в памяти проекта.
+
+## Qwen Added Memories
+- Пользователь дал полное разрешение на использование всех доступных инструментов разработки (MSBuild, .NET SDK, NuGet, Git и др.) для реализации проекта JSQ без дополнительных запросов подтверждения.
