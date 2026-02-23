@@ -179,7 +179,7 @@
                                    Margin="0,2,0,0"/>
                         <TextBlock Margin="0,10,0,5">
                             <Run Text="Длительность: "/>
-                            <Run Text="{Binding CurrentExperiment.Duration, StringFormat=hh\\:mm\\:ss}"/>
+                            <Run Text="{Binding CurrentExperiment.Duration, StringFormat=hh\\:mm\\:ss, Mode=OneWay}"/>
                         </TextBlock>
                     </StackPanel>
                 </GroupBox>
