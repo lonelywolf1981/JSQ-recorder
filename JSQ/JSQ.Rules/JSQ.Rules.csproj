@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JSQ.Core\JSQ.Core.csproj" />
+    <ProjectReference Include="..\JSQ.Storage\JSQ.Storage.csproj" />
+  </ItemGroup>
+
+</Project>

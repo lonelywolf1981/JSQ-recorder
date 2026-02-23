@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="JSQ.Capture/JSQ.Capture.csproj" />
+  <Project Path="JSQ.Core/JSQ.Core.csproj" />
+  <Project Path="JSQ.Decode/JSQ.Decode.csproj" />
+  <Project Path="JSQ.Export/JSQ.Export.csproj" />
+  <Project Path="JSQ.Rules/JSQ.Rules.csproj" />
+  <Project Path="JSQ.Storage/JSQ.Storage.csproj" />
+  <Project Path="JSQ.Tests/JSQ.Tests.csproj" />
+  <Project Path="JSQ.UI.WPF/JSQ.UI.WPF.csproj" />
+</Solution>

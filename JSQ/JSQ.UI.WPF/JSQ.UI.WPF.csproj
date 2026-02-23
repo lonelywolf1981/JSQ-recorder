@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Serilog" Version="3.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="2.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JSQ.Core\JSQ.Core.csproj" />
+    <ProjectReference Include="..\JSQ.Capture\JSQ.Capture.csproj" />
+    <ProjectReference Include="..\JSQ.Decode\JSQ.Decode.csproj" />
+    <ProjectReference Include="..\JSQ.Storage\JSQ.Storage.csproj" />
+    <ProjectReference Include="..\JSQ.Rules\JSQ.Rules.csproj" />
+    <ProjectReference Include="..\JSQ.Export\JSQ.Export.csproj" />
+  </ItemGroup>
+
+</Project>

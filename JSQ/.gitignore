@@ -1,0 +1,28 @@
+## Visual Studio / .NET
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+*.log
+*.tlog
+*.lastbuildstate
+*.suo
+*.user
+
+## NuGet
+packages/
+*.nupkg
+
+## Логи
+logs/
+*.log
+
+## Конфигурация (секреты)
+jsq.config.json
+
+## Временные файлы
+*.tmp
+*.bak
