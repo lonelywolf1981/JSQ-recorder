@@ -167,7 +167,10 @@
             </StatusBarItem>
             <Separator/>
             <StatusBarItem>
-                <TextBlock Text="Выбрано: —"/>
+                <TextBlock>
+                    <Run Text="Выбрано: "/>
+                    <Run Text="{Binding SelectedCount, Mode=OneWay}"/>
+                </TextBlock>
             </StatusBarItem>
         </StatusBar>
     </Grid>

@@ -89,6 +89,26 @@ public partial class MainViewModel : ObservableObject
         {
             Owner = Application.Current.MainWindow
         };
+        
+        // Подписка на результат
+        window.SelectionSaved += (selectedIndices) =>
+        {
+            // Обновление списка каналов в главном окне
+            Channels.Clear();
+            foreach (var index in selectedIndices)
+            {
+                // TODO: Загрузить информацию о канале из сервиса
+                Channels.Add(new ChannelStatus
+                {
+                    ChannelIndex = index,
+                    ChannelName = $"CH-{index}",
+                    Status = HealthStatus.NoData
+                });
+            }
+            
+            StatusMessage = $"Выбрано {selectedIndices.Count} каналов";
+        };
+        
         window.ShowDialog();
     }
     

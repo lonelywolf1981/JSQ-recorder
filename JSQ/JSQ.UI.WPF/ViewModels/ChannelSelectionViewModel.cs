@@ -45,6 +45,9 @@ public partial class ChannelSelectionViewModel : ObservableObject
     private string _selectedPresetName = string.Empty;
     
     [ObservableProperty]
+    private int _selectedCount;
+    
+    [ObservableProperty]
     private double? _bulkMinLimit;
     
     [ObservableProperty]
@@ -87,6 +90,19 @@ public partial class ChannelSelectionViewModel : ObservableObject
         ApplyFilters();
     }
     
+    partial void OnSelectedCountChanged(int value)
+    {
+        // Обновление статуса при изменении количества выбранных
+    }
+    
+    /// <summary>
+    /// Пересчет количества выбранных каналов
+    /// </summary>
+    private void UpdateSelectedCount()
+    {
+        SelectedCount = AllChannels.Count(c => c.IsSelected);
+    }
+    
     [RelayCommand]
     private void SelectAll()
     {
@@ -94,6 +110,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
         {
             channel.IsSelected = true;
         }
+        UpdateSelectedCount();
     }
     
     [RelayCommand]
@@ -103,6 +120,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
         {
             channel.IsSelected = false;
         }
+        UpdateSelectedCount();
     }
     
     [RelayCommand]
@@ -112,6 +130,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
         {
             channel.IsSelected = !channel.IsSelected;
         }
+        UpdateSelectedCount();
     }
     
     [RelayCommand]
@@ -198,9 +217,20 @@ public partial class ChannelSelectionViewModel : ObservableObject
             .Select(c => c.Index)
             .ToList();
         
+        // Обновляем счетчик
+        UpdateSelectedCount();
+        
         // TODO: Интеграция с ExperimentService
         Console.WriteLine($"Выбрано каналов: {selectedIndices.Count}");
+        
+        // Закрыть окно с результатом
+        SaveSelectionCompleted?.Invoke(selectedIndices);
     }
+    
+    /// <summary>
+    /// Событие завершения сохранения выбора
+    /// </summary>
+    public event Action<System.Collections.Generic.List<int>> SaveSelectionCompleted;
     
     private void ApplyFilters()
     {
