@@ -53,6 +53,7 @@
                         FontWeight="Bold" Foreground="Red" Padding="10,5"/>
                 <Separator/>
                 <Button Content="⚙ Настройки" Command="{Binding OpenSettingsCommand}" Padding="10,5"/>
+                <Button Content="📋 Каналы" Command="{Binding OpenChannelsCommand}" Padding="10,5"/>
                 <Button Content="💾 Экспорт" Command="{Binding ExportDataCommand}" Padding="10,5"/>
             </ToolBar>
         </ToolBarTray>

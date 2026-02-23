@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -77,6 +78,18 @@ public partial class MainViewModel : ObservableObject
     private void OpenSettings()
     {
         // Открыть настройки
+    }
+    
+    [RelayCommand]
+    private void OpenChannels()
+    {
+        // Открыть окно выбора каналов
+        var viewModel = new ChannelSelectionViewModel();
+        var window = new Views.ChannelSelectionWindow(viewModel)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        window.ShowDialog();
     }
     
     [RelayCommand]

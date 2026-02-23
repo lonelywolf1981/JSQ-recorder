@@ -1,0 +1,174 @@
+<Window x:Class="JSQ.UI.WPF.Views.ChannelSelectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:JSQ.UI.WPF.ViewModels"
+        mc:Ignorable="d"
+        Title="Выбор каналов" Height="700" Width="1000"
+        WindowStartupLocation="CenterOwner"
+        d:DataContext="{d:DesignInstance vm:ChannelSelectionViewModel}">
+    
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Фильтры -->
+        <GroupBox Grid.Row="0" Header="Фильтры" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                
+                <Grid Grid.Column="0" Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
+                
+                <Grid Grid.Column="1" Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Группа:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableGroups}" 
+                              SelectedItem="{Binding SelectedGroup}"/>
+                </Grid>
+                
+                <Grid Grid.Column="2" Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Пост:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding AvailablePosts}" 
+                              SelectedItem="{Binding SelectedPost}"/>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        
+        <!-- Таблица каналов -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="250"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- Список каналов -->
+            <GroupBox Grid.Column="0" Header="Каналы">
+                <DataGrid ItemsSource="{Binding FilteredChannels}" 
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          IsReadOnly="False"
+                          SelectionMode="Extended">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsSelected}" Width="40"/>
+                        <DataGridTextColumn Header="Канал" Binding="{Binding Name}" Width="80"/>
+                        <DataGridTextColumn Header="Описание" Binding="{Binding Description}" Width="200"/>
+                        <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="50"/>
+                        <DataGridTextColumn Header="Min" Binding="{Binding MinLimit}" Width="70"/>
+                        <DataGridTextColumn Header="Max" Binding="{Binding MaxLimit}" Width="70"/>
+                        <DataGridTextColumn Header="Пост" Binding="{Binding PostFix}" Width="50"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </GroupBox>
+            
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"/>
+            
+            <!-- Панель действий -->
+            <GroupBox Grid.Column="2" Header="Действия" Margin="5,0,0,0">
+                <StackPanel Margin="5">
+                    <TextBlock Text="Выбрано:" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <TextBlock Margin="0,0,0,10">
+                        <Run Text="{Binding FilteredChannels.Count, Mode=OneWay}"/>
+                        <Run Text="из"/>
+                        <Run Text="{Binding AllChannels.Count, Mode=OneWay}"/>
+                    </TextBlock>
+                    
+                    <Button Content="Выбрать все" Command="{Binding SelectAllCommand}" 
+                            Margin="0,5" Padding="5"/>
+                    <Button Content="Снять выделение" Command="{Binding DeselectAllCommand}" 
+                            Margin="0,5" Padding="5"/>
+                    <Button Content="Инвертировать" Command="{Binding InvertSelectionCommand}" 
+                            Margin="0,5" Padding="5"/>
+                    
+                    <Separator Margin="0,10"/>
+                    
+                    <TextBlock Text="Массовая настройка:" FontWeight="Bold" Margin="0,10,0,5"/>
+                    <TextBox Text="{Binding BulkMinLimit}" Margin="0,2" 
+                             VerticalContentAlignment="Center">
+                        <TextBox.ToolTip>Минимальный лимит</TextBox.ToolTip>
+                    </TextBox>
+                    <TextBox Text="{Binding BulkMaxLimit}" Margin="0,2" 
+                             VerticalContentAlignment="Center">
+                        <TextBox.ToolTip>Максимальный лимит</TextBox.ToolTip>
+                    </TextBox>
+                    <Button Content="Применить к выбранным" 
+                            Command="{Binding ApplyBulkLimitsCommand}" 
+                            Margin="0,5" Padding="5"/>
+                    
+                    <Separator Margin="0,10"/>
+                    
+                    <TextBlock Text="Пресеты:" FontWeight="Bold" Margin="0,10,0,5"/>
+                    <ComboBox ItemsSource="{Binding AvailablePresets}" 
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Name"
+                              SelectedValue="{Binding SelectedPresetName}"
+                              Margin="0,2"/>
+                    <Button Content="Загрузить пресет" Command="{Binding LoadPresetCommand}" 
+                            Margin="0,5" Padding="5"/>
+                    <Button Content="Сохранить пресет" Command="{Binding SavePresetCommand}" 
+                            Margin="0,5" Padding="5"/>
+                    <Button Content="Удалить пресет" Command="{Binding DeletePresetCommand}" 
+                            Margin="0,5" Padding="5"/>
+                </StackPanel>
+            </GroupBox>
+        </Grid>
+        
+        <!-- Кнопки -->
+        <Grid Grid.Row="2" Margin="0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <TextBox Grid.Column="0" Text="{Binding SelectedPresetName}" 
+                     VerticalContentAlignment="Center" Margin="0,0,10,0">
+                <TextBox.ToolTip>Имя пресета для сохранения</TextBox.ToolTip>
+            </TextBox>
+            
+            <Button Grid.Column="1" Content="Сохранить выбор" 
+                    Command="{Binding SaveSelectionCommand}"
+                    Padding="20,5" Margin="5,0"/>
+            <Button Grid.Column="2" Content="Закрыть" 
+                    Click="CloseButton_Click"
+                    Padding="20,5" Margin="5,0"/>
+        </Grid>
+        
+        <!-- Строка состояния -->
+        <StatusBar Grid.Row="3" Margin="0,10,0,0">
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="Всего каналов: "/>
+                    <Run Text="{Binding AllChannels.Count, Mode=OneWay}"/>
+                </TextBlock>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock Text="Выбрано: —"/>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>
