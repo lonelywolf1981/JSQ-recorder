@@ -1,4 +1,5 @@
 using System;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace JSQ.Core.Models;
 
@@ -16,20 +17,17 @@ public enum HealthStatus
 /// <summary>
 /// Статус канала
 /// </summary>
-public class ChannelStatus
+public partial class ChannelStatus : ObservableObject
 {
-    public int ChannelIndex { get; set; }
-    public string ChannelName { get; set; } = string.Empty;
-    public string Unit { get; set; } = string.Empty;
-    
-    public double? CurrentValue { get; set; }
-    public DateTime LastUpdateTime { get; set; }
-    
-    public HealthStatus Status { get; set; } = HealthStatus.NoData;
-    public string? StatusMessage { get; set; }
-    
-    public double? MinLimit { get; set; }
-    public double? MaxLimit { get; set; }
+    [ObservableProperty] private int _channelIndex;
+    [ObservableProperty] private string _channelName = string.Empty;
+    [ObservableProperty] private string _unit = string.Empty;
+    [ObservableProperty] private double? _currentValue;
+    [ObservableProperty] private DateTime _lastUpdateTime;
+    [ObservableProperty] private HealthStatus _status = HealthStatus.NoData;
+    [ObservableProperty] private string? _statusMessage;
+    [ObservableProperty] private double? _minLimit;
+    [ObservableProperty] private double? _maxLimit;
 }
 
 /// <summary>

@@ -73,13 +73,43 @@
                           IsReadOnly="False"
                           SelectionMode="Extended">
                     <DataGrid.Columns>
-                        <DataGridCheckBoxColumn Header="✓" Binding="{Binding IsSelected}" Width="40"/>
+                        <!-- Индикатор активности -->
+                        <DataGridTemplateColumn Header="●" Width="28">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="#BDBDBD"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                        <Setter Property="Fill" Value="#4CAF50"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Чекбокс выбора -->
+                        <DataGridTemplateColumn Header="✓" Width="40" SortMemberPath="IsSelected">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
                         <DataGridTextColumn Header="Канал" Binding="{Binding Name}" Width="80"/>
-                        <DataGridTextColumn Header="Описание" Binding="{Binding Description}" Width="200"/>
+                        <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="80"/>
                         <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="50"/>
-                        <DataGridTextColumn Header="Min" Binding="{Binding MinLimit}" Width="70"/>
-                        <DataGridTextColumn Header="Max" Binding="{Binding MaxLimit}" Width="70"/>
-                        <DataGridTextColumn Header="Пост" Binding="{Binding PostFix}" Width="50"/>
+                        <DataGridTextColumn Header="Описание" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="Min" Binding="{Binding MinLimit}" Width="60"/>
+                        <DataGridTextColumn Header="Max" Binding="{Binding MaxLimit}" Width="60"/>
+                        <DataGridTextColumn Header="Пост" Binding="{Binding PostFix}" Width="45"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </GroupBox>
@@ -89,11 +119,15 @@
             <!-- Панель действий -->
             <GroupBox Grid.Column="2" Header="Действия" Margin="5,0,0,0">
                 <StackPanel Margin="5">
-                    <TextBlock Text="Выбрано:" FontWeight="Bold" Margin="0,0,0,5"/>
-                    <TextBlock Margin="0,0,0,10">
-                        <Run Text="{Binding FilteredChannels.Count, Mode=OneWay}"/>
+                    <TextBlock Text="Выбрано каналов:" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <TextBlock Margin="0,0,0,5">
+                        <Run Text="{Binding SelectedCount, Mode=OneWay}" FontWeight="Bold" FontSize="16"/>
                         <Run Text="из"/>
                         <Run Text="{Binding AllChannels.Count, Mode=OneWay}"/>
+                    </TextBlock>
+                    <TextBlock Margin="0,0,0,10" Foreground="Gray" FontSize="11">
+                        <Run Text="Показано: "/>
+                        <Run Text="{Binding FilteredChannels.Count, Mode=OneWay}"/>
                     </TextBlock>
                     
                     <Button Content="Выбрать все" Command="{Binding SelectAllCommand}" 
@@ -143,10 +177,10 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            
-            <TextBox Grid.Column="0" Text="{Binding SelectedPresetName}" 
+
+            <TextBox Grid.Column="0" Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}"
                      VerticalContentAlignment="Center" Margin="0,0,10,0">
-                <TextBox.ToolTip>Имя пресета для сохранения</TextBox.ToolTip>
+                <TextBox.ToolTip>Введите имя для сохранения пресета</TextBox.ToolTip>
             </TextBox>
             
             <Button Grid.Column="1" Content="Сохранить выбор" 

@@ -1,7 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Windows;
-using System.Windows.Input;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JSQ.Core.Models;
@@ -14,134 +15,262 @@ namespace JSQ.UI.WPF.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly IExperimentService _experimentService;
-    
+    private readonly SettingsViewModel _settings;
+    private readonly DispatcherTimer _durationTimer;
+    private readonly DispatcherTimer _staleChannelTimer;
+
+    // Быстрый lookup: индекс канала → ChannelStatus (для O(1) обновлений)
+    private readonly Dictionary<int, ChannelStatus> _channelMap = new();
+
     [ObservableProperty]
     private SystemHealth _systemHealth = new();
-    
+
     [ObservableProperty]
-    private Experiment _currentExperiment;
-    
+    private Experiment? _currentExperiment;
+
     [ObservableProperty]
     private ObservableCollection<ChannelStatus> _channels = new();
-    
+
+    [ObservableProperty]
+    private ObservableCollection<ChannelStatus> _filteredChannels = new();
+
+    [ObservableProperty]
+    private string _channelSearchText = string.Empty;
+
+    [ObservableProperty]
+    private string _channelGroupFilter = "Все";
+
     [ObservableProperty]
     private ObservableCollection<LogEntry> _logEntries = new();
-    
+
     [ObservableProperty]
     private string _statusMessage = "Готов";
-    
+
     [ObservableProperty]
     private bool _isExperimentRunning;
-    
-    public MainViewModel(IExperimentService experimentService)
+
+    public MainViewModel(IExperimentService experimentService, SettingsViewModel settings)
     {
         _experimentService = experimentService;
-        
-        // Подписка на события
+        _settings = settings;
+
         _experimentService.HealthUpdated += OnHealthUpdated;
         _experimentService.LogReceived += OnLogReceived;
+        _experimentService.ChannelValueReceived += OnChannelValueReceived;
+
+        // Обновление таймера длительности эксперимента
+        _durationTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _durationTimer.Tick += (_, _) => OnPropertyChanged(nameof(CurrentExperiment));
+
+        // Проверка устаревших каналов (нет данных >5 секунд → NoData)
+        _staleChannelTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _staleChannelTimer.Tick += (_, _) => MarkStaleChannels();
+        _staleChannelTimer.Start();
+
+        // Загружаем все каналы из реестра — данные будут обновляться по мере поступления
+        InitializeChannels();
+
+        // Автоподключение при старте
+        _experimentService.Configure(
+            _settings.TransmitterHost,
+            _settings.TransmitterPort,
+            _settings.ConnectionTimeoutMs);
+        _experimentService.BeginMonitoring();
+
+        // При сохранении настроек — переподключаемся с новым IP/портом
+        _settings.SaveCompleted += OnSettingsSaved;
     }
-    
+
+    private void OnSettingsSaved()
+    {
+        _experimentService.Configure(
+            _settings.TransmitterHost,
+            _settings.TransmitterPort,
+            _settings.ConnectionTimeoutMs);
+        _experimentService.BeginMonitoring();
+        StatusMessage = $"Настройки сохранены. Подключение к {_settings.TransmitterHost}:{_settings.TransmitterPort}...";
+    }
+
+    private void InitializeChannels()
+    {
+        Channels.Clear();
+        _channelMap.Clear();
+        foreach (var kvp in ChannelRegistry.All)
+        {
+            var ch = new ChannelStatus
+            {
+                ChannelIndex = kvp.Key,
+                ChannelName = kvp.Value.Name,
+                Unit = kvp.Value.Unit,
+                Status = HealthStatus.NoData
+            };
+            Channels.Add(ch);
+            _channelMap[kvp.Key] = ch;
+        }
+        ApplyChannelFilter();
+    }
+
+    partial void OnChannelSearchTextChanged(string value) => ApplyChannelFilter();
+    partial void OnChannelGroupFilterChanged(string value) => ApplyChannelFilter();
+
+    private void ApplyChannelFilter()
+    {
+        FilteredChannels.Clear();
+        foreach (var ch in Channels)
+        {
+            var matchesSearch = string.IsNullOrWhiteSpace(ChannelSearchText) ||
+                                ch.ChannelName.IndexOf(ChannelSearchText, StringComparison.OrdinalIgnoreCase) >= 0;
+            var matchesGroup = ChannelGroupFilter == "Все" ||
+                               ch.ChannelName.StartsWith(ChannelGroupFilter + "-", StringComparison.OrdinalIgnoreCase);
+            if (matchesSearch && matchesGroup)
+                FilteredChannels.Add(ch);
+        }
+    }
+
+    private void MarkStaleChannels()
+    {
+        var staleThreshold = TimeSpan.FromSeconds(5);
+        var now = DateTime.Now;
+        foreach (var ch in Channels)
+        {
+            if (ch.Status == HealthStatus.OK && (now - ch.LastUpdateTime) > staleThreshold)
+                ch.Status = HealthStatus.NoData;
+        }
+    }
+
+    private void OnChannelValueReceived(int index, double value)
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            if (!_channelMap.TryGetValue(index, out var ch))
+                return;
+
+            ch.CurrentValue = double.IsNaN(value) ? (double?)null : value;
+            ch.LastUpdateTime = DateTime.Now;
+            ch.Status = double.IsNaN(value) ? HealthStatus.NoData : HealthStatus.OK;
+        });
+    }
+
     [RelayCommand]
     private void NewExperiment()
     {
-        // Открыть диалог создания эксперимента
+        // TODO: открыть диалог создания эксперимента
     }
-    
+
     [RelayCommand]
     private void StartExperiment()
     {
-        if (_currentExperiment != null)
-        {
-            _experimentService.StartExperiment(_currentExperiment);
-            IsExperimentRunning = true;
-            StatusMessage = "Эксперимент запущен";
-        }
+        if (CurrentExperiment == null)
+            CurrentExperiment = new Experiment { Name = "Быстрый старт", Operator = "" };
+
+        _experimentService.Configure(
+            _settings.TransmitterHost,
+            _settings.TransmitterPort,
+            _settings.ConnectionTimeoutMs);
+
+        _experimentService.BeginMonitoring();
+        IsExperimentRunning = true;
+        StatusMessage = $"Мониторинг активен ({_settings.TransmitterHost}:{_settings.TransmitterPort})";
+        _durationTimer.Start();
     }
-    
+
     [RelayCommand]
     private void PauseExperiment()
     {
         _experimentService.PauseExperiment();
         StatusMessage = "Эксперимент приостановлен";
     }
-    
+
     [RelayCommand]
     private void StopExperiment()
     {
         _experimentService.StopExperiment();
         IsExperimentRunning = false;
         StatusMessage = "Эксперимент остановлен";
+        _durationTimer.Stop();
     }
-    
+
     [RelayCommand]
     private void OpenSettings()
     {
-        // Открыть настройки
+        var window = new Views.SettingsWindow(_settings)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        window.ShowDialog();
     }
-    
+
     [RelayCommand]
     private void OpenChannels()
     {
-        // Открыть окно выбора каналов
         var viewModel = new ChannelSelectionViewModel();
+        viewModel.SubscribeToLiveData(_experimentService);
+
         var window = new Views.ChannelSelectionWindow(viewModel)
         {
             Owner = Application.Current.MainWindow
         };
-        
-        // Подписка на результат
+
+        window.Closed += (s, e) => viewModel.UnsubscribeFromLiveData();
+
         window.SelectionSaved += (selectedIndices) =>
         {
-            // Обновление списка каналов в главном окне
             Channels.Clear();
+            _channelMap.Clear();
+
             foreach (var index in selectedIndices)
             {
-                // TODO: Загрузить информацию о канале из сервиса
-                Channels.Add(new ChannelStatus
+                var ch = new ChannelStatus
                 {
                     ChannelIndex = index,
-                    ChannelName = $"CH-{index}",
+                    ChannelName = ChannelRegistry.GetName(index),
+                    Unit = ChannelRegistry.GetUnit(index),
                     Status = HealthStatus.NoData
-                });
+                };
+                Channels.Add(ch);
+                _channelMap[index] = ch;
             }
-            
+
+            ApplyChannelFilter();
             StatusMessage = $"Выбрано {selectedIndices.Count} каналов";
         };
-        
+
         window.ShowDialog();
     }
-    
+
     [RelayCommand]
     private void ExportData()
     {
-        // Экспорт данных
+        // TODO: экспорт в DBF
     }
-    
+
     private void OnHealthUpdated(SystemHealth health)
     {
-        SystemHealth = health;
-        
-        // Обновление статуса
-        StatusMessage = health.OverallStatus switch
+        Application.Current.Dispatcher.Invoke(() =>
         {
-            HealthStatus.OK => "Все системы в норме",
-            HealthStatus.Warning => $"Внимание: {health.ChannelsWarning} каналов с предупреждениями",
-            HealthStatus.Alarm => $"Тревога: {health.ChannelsAlarm} каналов в аварии",
-            HealthStatus.NoData => "Нет данных",
-            _ => StatusMessage
-        };
+            SystemHealth = health;
+            if (!IsExperimentRunning)
+            {
+                StatusMessage = health.OverallStatus switch
+                {
+                    HealthStatus.OK => "Все системы в норме",
+                    HealthStatus.Warning => $"Внимание: {health.ChannelsWarning} каналов с предупреждениями",
+                    HealthStatus.Alarm => $"Тревога: {health.ChannelsAlarm} каналов в аварии",
+                    HealthStatus.NoData => "Нет данных",
+                    _ => StatusMessage
+                };
+            }
+        });
     }
-    
+
     private void OnLogReceived(LogEntry entry)
     {
-        LogEntries.Insert(0, entry);
-        
-        // Ограничение размера лога
-        while (LogEntries.Count > 1000)
+        Application.Current.Dispatcher.Invoke(() =>
         {
-            LogEntries.RemoveAt(LogEntries.Count - 1);
-        }
+            LogEntries.Insert(0, entry);
+            while (LogEntries.Count > 1000)
+                LogEntries.RemoveAt(LogEntries.Count - 1);
+        });
     }
 }
 
@@ -151,7 +280,7 @@ public partial class MainViewModel : ObservableObject
 public class LogEntry
 {
     public DateTime Timestamp { get; set; }
-    public string Level { get; set; } = "Info"; // Info, Warning, Error, Critical
+    public string Level { get; set; } = "Info";
     public string Message { get; set; } = string.Empty;
     public string? Source { get; set; }
 }
@@ -163,11 +292,20 @@ public interface IExperimentService
 {
     event Action<SystemHealth> HealthUpdated;
     event Action<LogEntry> LogReceived;
-    
+
+    /// <summary>Канал index получил новое значение value (double.NaN = нет данных).</summary>
+    event Action<int, double>? ChannelValueReceived;
+
+    /// <summary>Задать параметры подключения.</summary>
+    void Configure(string host, int port, int timeoutMs);
+
+    /// <summary>Подключиться к передатчику и начать приём данных (без создания эксперимента).</summary>
+    void BeginMonitoring();
+
     void StartExperiment(Experiment experiment);
     void PauseExperiment();
     void ResumeExperiment();
     void StopExperiment();
-    
+
     SystemHealth GetCurrentHealth();
 }

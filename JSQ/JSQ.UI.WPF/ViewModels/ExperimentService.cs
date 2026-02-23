@@ -1,9 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using JSQ.Core.Models;
 using JSQ.Capture;
+using JSQ.Core.Models;
+using JSQ.Decode;
 
 namespace JSQ.UI.WPF.ViewModels;
 
@@ -13,27 +13,29 @@ namespace JSQ.UI.WPF.ViewModels;
 public class ExperimentService : IExperimentService, IDisposable
 {
     private readonly TcpCaptureService _captureService;
+    private readonly ChannelDecoder _decoder = new ChannelDecoder();
     private Experiment? _currentExperiment;
     private bool _isRunning;
-    
+
+    // Параметры подключения (обновляются через Configure)
+    private string _host = "192.168.0.214";
+    private int _port = 55555;
+    private int _timeoutMs = 5000;
+
     public event Action<SystemHealth>? HealthUpdated;
     public event Action<LogEntry>? LogReceived;
-    
-    private readonly SystemHealth _health = new();
+    public event Action<int, double>? ChannelValueReceived;
+
     private CancellationTokenSource? _healthUpdateCts;
-    
+
     public ExperimentService()
     {
         _captureService = new TcpCaptureService();
-        
-        // Подписка на события захвата
         _captureService.DataReceived += OnDataReceived;
         _captureService.StatusChanged += OnStatusChanged;
-        
-        // Запуск обновления здоровья
         StartHealthUpdates();
     }
-    
+
     private void StartHealthUpdates()
     {
         _healthUpdateCts = new CancellationTokenSource();
@@ -41,38 +43,49 @@ public class ExperimentService : IExperimentService, IDisposable
         {
             while (!_healthUpdateCts.Token.IsCancellationRequested)
             {
-                UpdateHealth();
-                await Task.Delay(1000);
+                try { UpdateHealth(); }
+                catch { /* не даём фоновому циклу упасть */ }
+                await Task.Delay(1000, _healthUpdateCts.Token).ConfigureAwait(false);
             }
-        });
+        }, _healthUpdateCts.Token);
     }
-    
+
     private void UpdateHealth()
     {
         var stats = _captureService.Statistics;
-        
-        _health.TotalChannels = 134;
-        _health.TotalSamplesReceived = stats.TotalPacketsReceived;
-        _health.SamplesPerSecond = stats.BytesPerSecond / 100; // Примерно
-        
-        var (ingest, decode, persist) = _captureService.GetQueueSizes();
-        
-        HealthUpdated?.Invoke(_health);
+        var health = new SystemHealth
+        {
+            TotalChannels = 134,
+            TotalSamplesReceived = stats.TotalPacketsReceived,
+            SamplesPerSecond = stats.BytesPerSecond / 100,
+            OverallStatus = stats.Status == ConnectionStatus.Connected
+                ? HealthStatus.OK
+                : HealthStatus.NoData
+        };
+        HealthUpdated?.Invoke(health);
     }
-    
+
     private void OnDataReceived(object sender, byte[] data)
     {
-        // Логируем полученные данные
-        var message = System.Text.Encoding.UTF8.GetString(data);
-        LogReceived?.Invoke(new LogEntry
+        // Декодируем значения каналов из сырых байт
+        var values = _decoder.Feed(data, data.Length);
+        foreach (var cv in values)
+            ChannelValueReceived?.Invoke(cv.Index, cv.Value);
+
+        // В лог пишем только если данные не поддались декодированию (бинарный мусор)
+        // или если декодер ничего не нашёл — показываем кол-во байт
+        if (values.Count == 0)
         {
-            Timestamp = DateTime.Now,
-            Level = "Info",
-            Source = "TCP",
-            Message = message.Length > 100 ? message.Substring(0, 100) + "..." : message
-        });
+            LogReceived?.Invoke(new LogEntry
+            {
+                Timestamp = DateTime.Now,
+                Level = "Info",
+                Source = "TCP",
+                Message = $"Получено {data.Length} байт (не декодировано)"
+            });
+        }
     }
-    
+
     private void OnStatusChanged(object sender, ConnectionStatus status)
     {
         LogReceived?.Invoke(new LogEntry
@@ -83,16 +96,69 @@ public class ExperimentService : IExperimentService, IDisposable
             Message = $"Статус подключения: {status}"
         });
     }
-    
+
+    public void Configure(string host, int port, int timeoutMs)
+    {
+        _host = host;
+        _port = port;
+        _timeoutMs = timeoutMs;
+    }
+
+    public void BeginMonitoring()
+    {
+        var host = _host;
+        var port = _port;
+
+        Task.Run(async () =>
+        {
+            try
+            {
+                // Если уже подключены — отключаемся (например, при смене IP в настройках)
+                if (_captureService.Status == ConnectionStatus.Connected)
+                    await _captureService.DisconnectAsync();
+
+                LogReceived?.Invoke(new LogEntry
+                {
+                    Timestamp = DateTime.Now,
+                    Level = "Info",
+                    Source = "System",
+                    Message = $"Подключение к {host}:{port}..."
+                });
+
+                await _captureService.ConnectAsync(host, port);
+
+                LogReceived?.Invoke(new LogEntry
+                {
+                    Timestamp = DateTime.Now,
+                    Level = "Info",
+                    Source = "System",
+                    Message = $"Подключено. Получение данных от {host}:{port}."
+                });
+            }
+            catch (Exception ex)
+            {
+                LogReceived?.Invoke(new LogEntry
+                {
+                    Timestamp = DateTime.Now,
+                    Level = "Warning",
+                    Source = "System",
+                    Message = $"Не удалось подключиться к {host}:{port}: {ex.Message}"
+                });
+            }
+        });
+    }
+
     public void StartExperiment(Experiment experiment)
     {
         if (_isRunning)
             return;
-        
+
         _currentExperiment = experiment;
         _isRunning = true;
-        
-        // Подключение к передатчику
+
+        var host = _host;
+        var port = _port;
+
         Task.Run(async () =>
         {
             try
@@ -102,15 +168,15 @@ public class ExperimentService : IExperimentService, IDisposable
                     Timestamp = DateTime.Now,
                     Level = "Info",
                     Source = "System",
-                    Message = $"Подключение к передатчику {experiment.PartNumber}..."
+                    Message = $"Подключение к {host}:{port}..."
                 });
-                
-                await _captureService.ConnectAsync("192.168.0.214", 55555);
-                
+
+                await _captureService.ConnectAsync(host, port);
+
                 LogReceived?.Invoke(new LogEntry
                 {
                     Timestamp = DateTime.Now,
-                    Level = "Success",
+                    Level = "Info",
                     Source = "System",
                     Message = "Подключено к передатчику"
                 });
@@ -127,10 +193,9 @@ public class ExperimentService : IExperimentService, IDisposable
             }
         });
     }
-    
+
     public void PauseExperiment()
     {
-        // TODO: Реализовать паузу
         LogReceived?.Invoke(new LogEntry
         {
             Timestamp = DateTime.Now,
@@ -139,23 +204,19 @@ public class ExperimentService : IExperimentService, IDisposable
             Message = "Пауза эксперимента"
         });
     }
-    
-    public void ResumeExperiment()
-    {
-        // TODO: Реализовать возобновление
-    }
-    
+
+    public void ResumeExperiment() { }
+
     public void StopExperiment()
     {
         if (!_isRunning)
             return;
-        
+
         _isRunning = false;
-        
+
         Task.Run(async () =>
         {
             await _captureService.DisconnectAsync();
-            
             LogReceived?.Invoke(new LogEntry
             {
                 Timestamp = DateTime.Now,
@@ -165,12 +226,9 @@ public class ExperimentService : IExperimentService, IDisposable
             });
         });
     }
-    
-    public SystemHealth GetCurrentHealth()
-    {
-        return _health;
-    }
-    
+
+    public SystemHealth GetCurrentHealth() => new SystemHealth { TotalChannels = 134 };
+
     public void Dispose()
     {
         _healthUpdateCts?.Cancel();

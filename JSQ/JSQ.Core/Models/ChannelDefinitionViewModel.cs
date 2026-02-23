@@ -40,7 +40,15 @@ public partial class ChannelDefinitionViewModel : ObservableObject
     
     [ObservableProperty]
     private string _postFix = string.Empty; // A, B, C
-    
+
+    /// <summary>Текущее значение от передатчика (null = нет данных)</summary>
+    [ObservableProperty]
+    private double? _currentValue;
+
+    /// <summary>true если получены данные от передатчика</summary>
+    [ObservableProperty]
+    private bool _isActive;
+
     public ChannelDefinitionViewModel() { }
     
     public ChannelDefinitionViewModel(ChannelDefinition channel)

@@ -81,39 +81,67 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        
+
                         <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                        <TextBox Grid.Column="1" x:Name="txtSearch" Margin="0,0,10,0"/>
-                        
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding ChannelSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,10,0"/>
+
                         <TextBlock Grid.Column="2" Text="Группа:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                        <ComboBox Grid.Column="3" x:Name="cmbGroup">
-                            <ComboBoxItem Content="Все" IsSelected="True"/>
-                            <ComboBoxItem Content="Пост A"/>
-                            <ComboBoxItem Content="Пост B"/>
-                            <ComboBoxItem Content="Пост C"/>
-                            <ComboBoxItem Content="Общие"/>
+                        <ComboBox Grid.Column="3"
+                                  SelectedValue="{Binding ChannelGroupFilter}">
+                            <ComboBoxItem Content="Все"/>
+                            <ComboBoxItem Content="A"/>
+                            <ComboBoxItem Content="B"/>
+                            <ComboBoxItem Content="C"/>
                         </ComboBox>
                     </Grid>
-                    
+
                     <!-- Список каналов -->
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding Channels}" 
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding FilteredChannels}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
                               IsReadOnly="True"
                               VirtualizingPanel.IsVirtualizing="True">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Канал" Binding="{Binding ChannelName}" Width="100"/>
-                            <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="100"/>
-                            <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="60"/>
-                            <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="80"/>
-                            <DataGridTextColumn Header="Посл. обновление" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="100"/>
+                            <!-- Индикатор активности -->
+                            <DataGridTemplateColumn Header="" Width="20">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Fill" Value="#BDBDBD"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Status}" Value="OK">
+                                                            <Setter Property="Fill" Value="#4CAF50"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Warning">
+                                                            <Setter Property="Fill" Value="#FF9800"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Alarm">
+                                                            <Setter Property="Fill" Value="#F44336"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Канал"  Binding="{Binding ChannelName}"  Width="90"/>
+                            <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
+                            <DataGridTextColumn Header="Ед."    Binding="{Binding Unit}"          Width="50"/>
+                            <DataGridTextColumn Header="Статус" Binding="{Binding Status}"        Width="70"/>
+                            <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                         </DataGrid.Columns>
-                        
+
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Status}" Value="OK">
-                                        <Setter Property="Background" Value="#E8F5E9"/>
+                                        <Setter Property="Background" Value="#F1F8F1"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Status}" Value="Warning">
                                         <Setter Property="Background" Value="#FFF9C4"/>
@@ -122,7 +150,8 @@
                                         <Setter Property="Background" Value="#FFCDD2"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Status}" Value="NoData">
-                                        <Setter Property="Background" Value="#EEEEEE"/>
+                                        <Setter Property="Background" Value="#F5F5F5"/>
+                                        <Setter Property="Foreground" Value="#9E9E9E"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>

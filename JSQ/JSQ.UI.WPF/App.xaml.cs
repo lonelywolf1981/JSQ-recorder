@@ -17,6 +17,21 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Перехватываем все необработанные исключения — не даём приложению молча закрыться
+        DispatcherUnhandledException += (s, args) =>
+        {
+            MessageBox.Show(
+                $"Ошибка UI:\n{args.Exception.Message}\n\n{args.Exception.StackTrace}",
+                "JSQ - Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            args.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
+        {
+            var ex = args.ExceptionObject?.ToString() ?? "неизвестная ошибка";
+            MessageBox.Show($"Критическая ошибка:\n{ex}", "JSQ - Критическая ошибка",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        };
+
         try
         {
             var services = new ServiceCollection();
@@ -28,7 +43,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Ошибка запуска: {ex.Message}\n\n{ex.StackTrace}", 
+            MessageBox.Show($"Ошибка запуска: {ex.Message}\n\n{ex.StackTrace}",
                 "JSQ - Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
@@ -37,11 +52,12 @@ public partial class App : Application
     private void ConfigureServices(IServiceCollection services)
     {
         // ViewModels
+        services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<MainViewModel>();
-        
-        // Services - реальный сервис экспериментов
+
+        // Services
         services.AddSingleton<IExperimentService, ExperimentService>();
-        
+
         // Views
         services.AddSingleton<MainWindow>();
     }
@@ -54,9 +70,12 @@ public class ExperimentServiceStub : IExperimentService
 {
     public event Action<SystemHealth> HealthUpdated = delegate { };
     public event Action<LogEntry> LogReceived = delegate { };
+    public event Action<int, double>? ChannelValueReceived;
 
     public SystemHealth GetCurrentHealth() => new SystemHealth();
 
+    public void Configure(string host, int port, int timeoutMs) { }
+    public void BeginMonitoring() { }
     public void StartExperiment(Experiment experiment) { }
     public void PauseExperiment() { }
     public void ResumeExperiment() { }

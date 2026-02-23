@@ -1,9 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Windows.Input;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JSQ.Core.Models;
@@ -16,6 +17,10 @@ namespace JSQ.UI.WPF.ViewModels;
 public partial class ChannelSelectionViewModel : ObservableObject
 {
     private readonly string _presetsPath = "channel_presets.json";
+
+    // Быстрый lookup для обновления живых значений: index → VM
+    private readonly Dictionary<int, ChannelDefinitionViewModel> _channelByIndex = new();
+    private IExperimentService? _liveDataService;
     
     [ObservableProperty]
     private ObservableCollection<ChannelDefinitionViewModel> _allChannels = new();
@@ -43,6 +48,9 @@ public partial class ChannelSelectionViewModel : ObservableObject
     
     [ObservableProperty]
     private string _selectedPresetName = string.Empty;
+
+    [ObservableProperty]
+    private string _newPresetName = string.Empty;
     
     [ObservableProperty]
     private int _selectedCount;
@@ -53,7 +61,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
     [ObservableProperty]
     private double? _bulkMaxLimit;
     
-    public ChannelSelectionViewModel()
+        public ChannelSelectionViewModel()
     {
         AvailableGroups.Add("Все");
         AvailableGroups.Add("Пост A");
@@ -63,16 +71,63 @@ public partial class ChannelSelectionViewModel : ObservableObject
         AvailableGroups.Add("Давление");
         AvailableGroups.Add("Температура");
         AvailableGroups.Add("Электрические");
-        
+
         AvailablePosts.Add("Все");
         AvailablePosts.Add("A");
         AvailablePosts.Add("B");
         AvailablePosts.Add("C");
-        
+
+        // Подписка на добавление каналов — для реактивного обновления SelectedCount
+        AllChannels.CollectionChanged += (s, e) =>
+        {
+            if (e.NewItems != null)
+                foreach (ChannelDefinitionViewModel ch in e.NewItems)
+                    ch.PropertyChanged += OnChannelIsSelectedChanged;
+            if (e.OldItems != null)
+                foreach (ChannelDefinitionViewModel ch in e.OldItems)
+                    ch.PropertyChanged -= OnChannelIsSelectedChanged;
+        };
+
         LoadPresets();
-        
-        // Загрузка тестовых данных
         LoadTestChannels();
+    }
+
+    private void OnChannelIsSelectedChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ChannelDefinitionViewModel.IsSelected))
+            UpdateSelectedCount();
+    }
+
+    /// <summary>Подписаться на живые данные от передатчика.</summary>
+    public void SubscribeToLiveData(IExperimentService service)
+    {
+        _liveDataService = service;
+        // Строим индексный словарь
+        _channelByIndex.Clear();
+        foreach (var ch in AllChannels)
+            _channelByIndex[ch.Index] = ch;
+        service.ChannelValueReceived += OnLiveChannelValue;
+    }
+
+    /// <summary>Отписаться от живых данных (вызывается при закрытии окна).</summary>
+    public void UnsubscribeFromLiveData()
+    {
+        if (_liveDataService != null)
+        {
+            _liveDataService.ChannelValueReceived -= OnLiveChannelValue;
+            _liveDataService = null;
+        }
+    }
+
+    private void OnLiveChannelValue(int index, double value)
+    {
+        if (!_channelByIndex.TryGetValue(index, out var ch))
+            return;
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            ch.CurrentValue = double.IsNaN(value) ? (double?)null : value;
+            ch.IsActive = !double.IsNaN(value);
+        });
     }
     
     partial void OnSearchTextChanged(string value)
@@ -82,11 +137,17 @@ public partial class ChannelSelectionViewModel : ObservableObject
     
     partial void OnSelectedGroupChanged(string value)
     {
+        // Если выбрана группа по посту — сбрасываем фильтр "Пост", чтобы не было конфликта AND
+        if (value is "Пост A" or "Пост B" or "Пост C")
+            SelectedPost = "Все";
         ApplyFilters();
     }
-    
+
     partial void OnSelectedPostChanged(string value)
     {
+        // Если выбран конкретный пост — сбрасываем группу-пост, чтобы не было конфликта AND
+        if (value != "Все" && SelectedGroup is "Пост A" or "Пост B" or "Пост C")
+            SelectedGroup = "Все";
         ApplyFilters();
     }
     
@@ -148,27 +209,27 @@ public partial class ChannelSelectionViewModel : ObservableObject
     [RelayCommand]
     private void SavePreset()
     {
-        if (string.IsNullOrWhiteSpace(SelectedPresetName))
+        if (string.IsNullOrWhiteSpace(NewPresetName))
             return;
-        
+
         var selectedChannels = AllChannels
             .Where(c => c.IsSelected)
             .Select(c => c.Index)
             .ToList();
-        
+
         var preset = new ChannelPreset
         {
-            Name = SelectedPresetName,
+            Name = NewPresetName,
             SelectedChannelIndices = selectedChannels,
             CreatedAt = DateTime.Now
         };
-        
+
         var presets = LoadAllPresets();
-        var existing = presets.FirstOrDefault(p => p.Name == SelectedPresetName);
+        var existing = presets.FirstOrDefault(p => p.Name == NewPresetName);
         if (existing != null)
             presets.Remove(existing);
         presets.Add(preset);
-        
+
         SaveAllPresets(presets);
         LoadPresets();
     }
@@ -190,6 +251,8 @@ public partial class ChannelSelectionViewModel : ObservableObject
         {
             channel.IsSelected = true;
         }
+
+        UpdateSelectedCount();
     }
     
     [RelayCommand]
@@ -241,8 +304,8 @@ public partial class ChannelSelectionViewModel : ObservableObject
         // Фильтр по поиску
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
-            query = query.Where(c => c.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                                    c.Description.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(c => c.Name.IndexOf(SearchText, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                    c.Description.IndexOf(SearchText, StringComparison.OrdinalIgnoreCase) >= 0);
         }
         
         // Фильтр по группе
