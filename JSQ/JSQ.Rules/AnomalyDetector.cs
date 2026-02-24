@@ -101,16 +101,23 @@ public class AnomalyDetector : IAnomalyDetector
                 {
                     ClearViolation(channelIndex, AnomalyType.MinViolation);
                     state.HasActiveMinViolation = false;
+                    // Значение вернулось в допустимые пределы — фиксируем восстановление
+                    if (!state.HasActiveMaxViolation)
+                    {
+                        var restored = CreateEvent(channelIndex, rule.ChannelName, AnomalyType.LimitsRestored,
+                            value, rule.MinLimit, $"Значение {value:F3} вернулось в пределы (мин {rule.MinLimit:F3})");
+                        events.Add(restored);
+                    }
                 }
             }
         }
-        
+
         // Проверка максимума
         if (rule.MaxLimit.HasValue)
         {
             var hysteresis = rule.MaxHysteresis ?? 0;
             var effectiveMax = rule.MaxLimit.Value + hysteresis;
-            
+
             if (value > effectiveMax)
             {
                 state.MaxViolationCount++;
@@ -129,6 +136,13 @@ public class AnomalyDetector : IAnomalyDetector
                 {
                     ClearViolation(channelIndex, AnomalyType.MaxViolation);
                     state.HasActiveMaxViolation = false;
+                    // Значение вернулось в допустимые пределы — фиксируем восстановление
+                    if (!state.HasActiveMinViolation)
+                    {
+                        var restored = CreateEvent(channelIndex, rule.ChannelName, AnomalyType.LimitsRestored,
+                            value, rule.MaxLimit, $"Значение {value:F3} вернулось в пределы (макс {rule.MaxLimit:F3})");
+                        events.Add(restored);
+                    }
                 }
             }
         }
@@ -205,6 +219,11 @@ public class AnomalyDetector : IAnomalyDetector
                 {
                     ClearViolation(rule.ChannelIndex, AnomalyType.NoData);
                     state.HasNoDataEvent = false;
+
+                    // Канал снова передаёт данные — фиксируем восстановление
+                    var recovery = CreateEvent(rule.ChannelIndex, rule.ChannelName, AnomalyType.DataRestored,
+                        null, null, $"Данные восстановлены: {rule.ChannelName}");
+                    events.Add(recovery);
                 }
             }
         }
@@ -233,9 +252,11 @@ public class AnomalyDetector : IAnomalyDetector
     {
         var severity = type switch
         {
-            AnomalyType.MinViolation or AnomalyType.MaxViolation => "Critical",
+            AnomalyType.MinViolation or AnomalyType.MaxViolation => "Warning",  // жёлтый
             AnomalyType.DeltaSpike => "Warning",
-            AnomalyType.NoData => "Warning",
+            AnomalyType.NoData => "Critical",                                   // красный — отключение канала
+            AnomalyType.DataRestored => "Info",                                 // зелёный
+            AnomalyType.LimitsRestored => "Info",                               // зелёный — возврат в пределы
             AnomalyType.QualityBad => "Critical",
             _ => "Warning"
         };

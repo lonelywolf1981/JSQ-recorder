@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ExperimentService _experimentService;
     private readonly SettingsViewModel _settings;
     private readonly DispatcherTimer _staleChannelTimer;
+    private static readonly TimeSpan StaleDataThreshold = TimeSpan.FromSeconds(5);
 
     // channelIndex → список ChannelStatus (один per post, для Common-каналов их может быть несколько)
     private readonly Dictionary<int, List<ChannelStatus>> _channelMap = new();
@@ -59,6 +60,7 @@ public partial class MainViewModel : ObservableObject
     // --- Общие ---
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SystemHealthStatusText))]
     private SystemHealth _systemHealth = new();
 
     [ObservableProperty]
@@ -72,6 +74,16 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>True если хотя бы один пост ведёт запись.</summary>
     public bool IsAnyPostRunning => PostA.IsRunning || PostB.IsRunning || PostC.IsRunning;
+
+    /// <summary>Читаемый текст для OverallStatus в блоке "Здоровье системы".</summary>
+    public string SystemHealthStatusText => SystemHealth.OverallStatus switch
+    {
+        HealthStatus.OK      => "НОРМА",
+        HealthStatus.Warning => "ВНИМАНИЕ",
+        HealthStatus.Alarm   => "ТРЕВОГА",
+        HealthStatus.NoData  => "НЕТ ДАННЫХ",
+        _                    => "—"
+    };
 
     // Количество каналов на каждом посту (для заголовка вкладки)
     public int PostACount => PostAChannels.Count;
@@ -345,6 +357,7 @@ public partial class MainViewModel : ObservableObject
         _experimentService.StartPost(postId, experiment, channelIndices);
 
         monitor.CurrentExperiment = experiment;
+        monitor.LastExperimentId = experiment.Id;
         monitor.State = ExperimentState.Running;
         monitor.AnomalyCount = 0;
 
@@ -362,8 +375,32 @@ public partial class MainViewModel : ObservableObject
         monitor.State = ExperimentState.Idle;
         monitor.CurrentExperiment = null;
 
+        // После остановки записи снимаем «боевые» статусы канала.
+        // Если данных нет (или они устарели) — канал уходит в серый NoData.
+        // Если поток живой — канал становится OK.
+        NormalizePostStatusesAfterStop(postId);
+
         NotifyRunningChanged();
         StatusMessage = $"Пост {postId}: запись остановлена";
+    }
+
+    private void NormalizePostStatusesAfterStop(string postId)
+    {
+        var now = DateTime.Now;
+        foreach (var ch in GetPostChannels(postId))
+        {
+            var hasFreshData = ch.LastUpdateTime != default &&
+                               (now - ch.LastUpdateTime) <= StaleDataThreshold;
+
+            if (!hasFreshData || !ch.CurrentValue.HasValue)
+            {
+                ch.Status = HealthStatus.NoData;
+            }
+            else
+            {
+                ch.Status = HealthStatus.OK;
+            }
+        }
     }
 
     [RelayCommand]
@@ -371,6 +408,29 @@ public partial class MainViewModel : ObservableObject
     {
         // TODO: экспорт в DBF для конкретного поста
         StatusMessage = $"Пост {postId}: экспорт...";
+    }
+
+    [RelayCommand]
+    private void OpenEventHistory(string postId)
+    {
+        var monitor = GetPostMonitor(postId);
+        var experimentId = monitor.IsRunning
+            ? monitor.CurrentExperiment?.Id
+            : monitor.LastExperimentId;
+
+        if (string.IsNullOrEmpty(experimentId))
+        {
+            StatusMessage = $"Пост {postId}: нет данных для отображения истории";
+            return;
+        }
+
+        var experimentName = monitor.CurrentExperiment?.Name
+            ?? $"Пост {postId} — последний эксперимент";
+        var window = new Views.EventHistoryWindow(experimentId, experimentName, _experimentService)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        window.Show();
     }
 
     [RelayCommand]
@@ -403,16 +463,35 @@ public partial class MainViewModel : ObservableObject
         {
             if (!_channelMap.TryGetValue(index, out var statuses)) return;
 
+            ChannelRegistry.All.TryGetValue(index, out var def);
+
             foreach (var ch in statuses)
             {
                 ch.CurrentValue = double.IsNaN(value) ? (double?)null : value;
                 ch.LastUpdateTime = DateTime.Now;
 
-                var monitor = GetPostMonitor(ch.Post);
                 if (double.IsNaN(value))
+                {
+                    // Некорректное значение в потоке — нет данных
                     ch.Status = HealthStatus.NoData;
-                else if (monitor.IsRunning)
-                    ch.Status = HealthStatus.OK;
+                }
+                else
+                {
+                    // Данные пришли — канал живой. Статус определяем по лимитам
+                    // (проверка лимитов актуальна только во время записи)
+                    var monitor = GetPostMonitor(ch.Post);
+                    if (monitor.IsRunning && def != null &&
+                        ((def.MinLimit.HasValue && value < def.MinLimit.Value) ||
+                         (def.MaxLimit.HasValue && value > def.MaxLimit.Value)))
+                    {
+                        ch.Status = HealthStatus.Warning;
+                    }
+                    else if (ch.Status != HealthStatus.Alarm)
+                    {
+                        // Не сбрасываем Alarm — его снимает только DataRestored
+                        ch.Status = HealthStatus.OK;
+                    }
+                }
             }
         });
     }
@@ -422,20 +501,63 @@ public partial class MainViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(() =>
         {
             var monitor = GetPostMonitor(postId);
-            monitor.AnomalyCount++;
+            string level;
 
-            // Обновляем статус конкретного канала для конкретного поста
-            if (_channelMap.TryGetValue(evt.ChannelIndex, out var statuses))
+            if (evt.AnomalyType == AnomalyType.DataRestored)
             {
-                var ch = statuses.FirstOrDefault(s => s.Post == postId) ?? statuses.FirstOrDefault();
-                if (ch != null)
-                    ch.Status = evt.Severity == "Critical" ? HealthStatus.Alarm : HealthStatus.Warning;
+                // Восстановление — не аномалия, логируем Info/зелёный
+                level = "Info";
+                // Явно снимаем Alarm: OnChannelValueReceived не трогает Alarm-статус
+                if (_channelMap.TryGetValue(evt.ChannelIndex, out var restoredStatuses))
+                {
+                    var ch = restoredStatuses.FirstOrDefault(s => s.Post == postId) ?? restoredStatuses.FirstOrDefault();
+                    if (ch != null)
+                        ch.Status = HealthStatus.OK;
+                }
+            }
+            else if (evt.AnomalyType == AnomalyType.LimitsRestored)
+            {
+                // Возврат в пределы — не аномалия, логируем Info/зелёный, канал → OK
+                level = "Info";
+                if (_channelMap.TryGetValue(evt.ChannelIndex, out var limRestoredStatuses))
+                {
+                    var ch = limRestoredStatuses.FirstOrDefault(s => s.Post == postId) ?? limRestoredStatuses.FirstOrDefault();
+                    if (ch != null)
+                        ch.Status = HealthStatus.OK;
+                }
+            }
+            else if (evt.AnomalyType == AnomalyType.MinViolation ||
+                     evt.AnomalyType == AnomalyType.MaxViolation)
+            {
+                // Выход за пределы — предупреждение, но НЕ аномалия:
+                // счётчик ⚠ не увеличиваем, в здоровье идёт в "Предупреждения"
+                level = "Warning";
+                if (_channelMap.TryGetValue(evt.ChannelIndex, out var statuses))
+                {
+                    var ch = statuses.FirstOrDefault(s => s.Post == postId) ?? statuses.FirstOrDefault();
+                    if (ch != null)
+                        ch.Status = HealthStatus.Warning;
+                }
+            }
+            else
+            {
+                // Настоящая аномалия (NoData — отключение канала, DeltaSpike, QualityBad):
+                // счётчик ⚠ увеличиваем, в здоровье идёт в "Отключены"
+                monitor.AnomalyCount++;
+                level = evt.Severity == "Critical" ? "Error" : "Warning";
+
+                if (_channelMap.TryGetValue(evt.ChannelIndex, out var statuses))
+                {
+                    var ch = statuses.FirstOrDefault(s => s.Post == postId) ?? statuses.FirstOrDefault();
+                    if (ch != null)
+                        ch.Status = evt.Severity == "Critical" ? HealthStatus.Alarm : HealthStatus.Warning;
+                }
             }
 
             var entry = new LogEntry
             {
                 Timestamp = evt.Timestamp,
-                Level = evt.Severity == "Critical" ? "Error" : "Warning",
+                Level = level,
                 Source = evt.ChannelName,
                 Post = postId,
                 Message = evt.Message
@@ -445,7 +567,6 @@ public partial class MainViewModel : ObservableObject
             while (LogEntries.Count > 1000)
                 LogEntries.RemoveAt(LogEntries.Count - 1);
 
-            // Добавляем в RecentAlerts
             RecentAlerts.Insert(0, entry);
             while (RecentAlerts.Count > 8)
                 RecentAlerts.RemoveAt(RecentAlerts.Count - 1);
@@ -454,14 +575,32 @@ public partial class MainViewModel : ObservableObject
 
     private void MarkStaleChannels()
     {
-        var threshold = TimeSpan.FromSeconds(5);
+        // Во время записи: OK/Warning → NoData если данные молчат > 5 сек.
+        // Вне записи: любой устаревший статус → NoData (серый), включая бывший Alarm.
+        // Сами оповещения генерирует AnomalyDetector.CheckTimeouts (через 10 сек),
+        // а не этот таймер — чтобы исключить ложные срабатывания при паузах потока.
         var now = DateTime.Now;
         foreach (var statuses in _channelMap.Values)
         {
             foreach (var ch in statuses)
             {
-                if (ch.Status == HealthStatus.OK && (now - ch.LastUpdateTime) > threshold)
+                var isRunning = !string.IsNullOrEmpty(ch.Post) && GetPostMonitor(ch.Post).IsRunning;
+                var isStale = (now - ch.LastUpdateTime) > StaleDataThreshold;
+
+                if (!isRunning)
+                {
+                    if (isStale)
+                    {
+                        ch.Status = HealthStatus.NoData;
+                    }
+                    continue;
+                }
+
+                if ((ch.Status == HealthStatus.OK || ch.Status == HealthStatus.Warning) &&
+                    isStale)
+                {
                     ch.Status = HealthStatus.NoData;
+                }
             }
         }
     }
@@ -470,6 +609,33 @@ public partial class MainViewModel : ObservableObject
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
+            // Считаем реальные статусы каналов из UI-модели
+            int ok = 0, warning = 0, alarm = 0, noData = 0;
+            foreach (var statuses in _channelMap.Values)
+            {
+                foreach (var ch in statuses)
+                {
+                    switch (ch.Status)
+                    {
+                        case HealthStatus.OK:      ok++;      break;
+                        case HealthStatus.Warning:  warning++; break;
+                        case HealthStatus.Alarm:    alarm++;   break;
+                        default:                   noData++;  break;
+                    }
+                }
+            }
+            health.ChannelsOK = ok;
+            health.ChannelsWarning = warning;
+            health.ChannelsAlarm = alarm;
+            health.ChannelsNoData = noData;
+            health.TotalChannels = ok + warning + alarm + noData;
+
+            // OverallStatus по реальному состоянию каналов
+            if (alarm > 0) health.OverallStatus = HealthStatus.Alarm;
+            else if (warning > 0) health.OverallStatus = HealthStatus.Warning;
+            else if (ok > 0) health.OverallStatus = HealthStatus.OK;
+            else health.OverallStatus = HealthStatus.NoData;
+
             SystemHealth = health;
             if (!IsAnyPostRunning)
             {
@@ -478,7 +644,7 @@ public partial class MainViewModel : ObservableObject
                     HealthStatus.OK => "Все системы в норме",
                     HealthStatus.Warning => $"Внимание: {health.ChannelsWarning} каналов с предупреждениями",
                     HealthStatus.Alarm => $"Тревога: {health.ChannelsAlarm} каналов в аварии",
-                    HealthStatus.NoData => "Нет данных",
+                    HealthStatus.NoData => "Нет данных от источника",
                     _ => StatusMessage
                 };
             }
@@ -531,4 +697,31 @@ public interface IExperimentService
 
     Task<List<(DateTime time, double value)>> LoadChannelHistoryAsync(
         int channelIndex, DateTime startTime, DateTime endTime);
+
+    Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId);
+}
+
+/// <summary>
+/// Запись события канала для отображения в истории эксперимента
+/// </summary>
+public class ChannelEventRecord
+{
+    public DateTime Timestamp { get; set; }
+    public string ChannelName { get; set; } = string.Empty;
+    public string EventType { get; set; } = string.Empty;
+    public double? Value { get; set; }
+    public double? Threshold { get; set; }
+
+    public string EventTypeDisplay => EventType switch
+    {
+        "NoData"          => "Нет данных",
+        "DataRestored"    => "Данные восстановлены",
+        "MinViolation"    => "Ниже минимума",
+        "MaxViolation"    => "Выше максимума",
+        "LimitsRestored"  => "Возврат в пределы",
+        "DeltaSpike"      => "Резкий скачок",
+        "QualityDegraded" => "Ухудшение качества",
+        "QualityBad"      => "Плохое качество",
+        _                 => EventType
+    };
 }

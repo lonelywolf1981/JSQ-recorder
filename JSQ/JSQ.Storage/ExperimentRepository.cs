@@ -56,6 +56,16 @@ public interface IExperimentRepository
     /// </summary>
     Task<List<(DateTime time, double value)>> GetChannelHistoryAnyAsync(
         int channelIndex, DateTime startTime, DateTime endTime, CancellationToken ct = default);
+
+    /// <summary>
+    /// Сохранить событие аномалии
+    /// </summary>
+    Task SaveAnomalyEventAsync(AnomalyEvent evt, CancellationToken ct = default);
+
+    /// <summary>
+    /// Получить все события аномалий для эксперимента
+    /// </summary>
+    Task<List<AnomalyEventRecord>> GetAnomalyEventsAsync(string experimentId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -384,6 +394,59 @@ public class ExperimentRepository : IExperimentRepository
         public string Timestamp { get; set; } = string.Empty;
         public double Value { get; set; }
     }
+
+    public async Task SaveAnomalyEventAsync(AnomalyEvent evt, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+        const string sql = @"
+            INSERT INTO anomaly_events (
+                experiment_id, timestamp, channel_index, channel_name,
+                anomaly_type, value, threshold
+            ) VALUES (
+                @ExperimentId, @Timestamp, @ChannelIndex, @ChannelName,
+                @AnomalyType, @Value, @Threshold
+            );
+        ";
+        await conn.ExecuteAsync(sql, new
+        {
+            ExperimentId = evt.ExperimentId,
+            Timestamp = evt.Timestamp.ToString("O"),
+            ChannelIndex = evt.ChannelIndex,
+            ChannelName = evt.ChannelName,
+            AnomalyType = evt.AnomalyType.ToString(),
+            Value = evt.Value,
+            Threshold = evt.Threshold
+        });
+    }
+
+    public async Task<List<AnomalyEventRecord>> GetAnomalyEventsAsync(
+        string experimentId, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+        const string sql = @"
+            SELECT timestamp AS Timestamp, channel_index AS ChannelIndex,
+                   channel_name AS ChannelName, anomaly_type AS AnomalyType,
+                   value AS Value, threshold AS Threshold
+            FROM anomaly_events
+            WHERE experiment_id = @ExperimentId
+            ORDER BY timestamp ASC;
+        ";
+        var rows = await conn.QueryAsync<AnomalyEventRecord>(sql, new { ExperimentId = experimentId });
+        return rows.ToList();
+    }
+}
+
+/// <summary>
+/// Запись события аномалии для отображения в истории
+/// </summary>
+public class AnomalyEventRecord
+{
+    public string Timestamp { get; set; } = string.Empty;
+    public int ChannelIndex { get; set; }
+    public string ChannelName { get; set; } = string.Empty;
+    public string AnomalyType { get; set; } = string.Empty;
+    public double? Value { get; set; }
+    public double? Threshold { get; set; }
 }
 
 /// <summary>

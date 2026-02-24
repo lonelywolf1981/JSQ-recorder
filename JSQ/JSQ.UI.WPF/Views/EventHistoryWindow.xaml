@@ -1,0 +1,65 @@
+<Window x:Class="JSQ.UI.WPF.Views.EventHistoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="История событий" Height="500" Width="860"
+        WindowStartupLocation="CenterOwner">
+
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" x:Name="TitleBlock" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
+
+        <DataGrid Grid.Row="1" x:Name="EventsGrid"
+                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                  VirtualizingPanel.IsVirtualizing="True">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding EventType}" Value="NoData">
+                            <Setter Property="Background" Value="#FFCDD2"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding EventType}" Value="MinViolation">
+                            <Setter Property="Background" Value="#FFF9C4"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding EventType}" Value="MaxViolation">
+                            <Setter Property="Background" Value="#FFF9C4"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding EventType}" Value="DataRestored">
+                            <Setter Property="Background" Value="#E8F5E9"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding EventType}" Value="LimitsRestored">
+                            <Setter Property="Background" Value="#E8F5E9"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Время"
+                                    Binding="{Binding Timestamp, StringFormat=HH:mm:ss}"
+                                    Width="80"/>
+                <DataGridTextColumn Header="Канал"
+                                    Binding="{Binding ChannelName}"
+                                    Width="100"/>
+                <DataGridTextColumn Header="Тип события"
+                                    Binding="{Binding EventTypeDisplay}"
+                                    Width="160"/>
+                <DataGridTextColumn Header="Значение"
+                                    Binding="{Binding Value, StringFormat=F3}"
+                                    Width="90"/>
+                <DataGridTextColumn Header="Порог"
+                                    Binding="{Binding Threshold, StringFormat=F3}"
+                                    Width="90"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <TextBlock x:Name="StatusBlock" VerticalAlignment="Center" Foreground="Gray" Margin="0,0,16,0"/>
+            <Button Content="Обновить" Click="RefreshButton_Click" Padding="16,5" Margin="0,0,8,0"/>
+            <Button Content="Закрыть" IsCancel="True" Click="CloseButton_Click" Padding="16,5"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -282,6 +282,10 @@ public partial class ChannelSelectionViewModel : ObservableObject
             .Select(c => c.Index)
             .ToList();
 
+        // Применяем лимиты к реестру каналов и сохраняем для следующего сеанса
+        ApplyLimitsToRegistry();
+        SaveLimitsToFile();
+
         UpdateSelectedCount();
         SaveSelectionCompleted?.Invoke(selectedIndices);
     }
@@ -318,9 +322,11 @@ public partial class ChannelSelectionViewModel : ObservableObject
             FilteredChannels.Add(ch);
     }
 
-    /// <summary>Загружает каналы из ChannelRegistry (единственный источник истины).</summary>
+    /// <summary>Загружает каналы из ChannelRegistry с наложением сохранённых лимитов.</summary>
     private void LoadChannelsFromRegistry()
     {
+        var savedLimits = LoadLimitsFromFile();
+
         foreach (var kvp in ChannelRegistry.All)
         {
             var def = kvp.Value;
@@ -331,6 +337,14 @@ public partial class ChannelSelectionViewModel : ObservableObject
                 ChannelGroup.PostC => "C",
                 _ => string.Empty
             };
+
+            double? minLimit = def.MinLimit;
+            double? maxLimit = def.MaxLimit;
+            if (savedLimits.TryGetValue(def.Index, out var lim))
+            {
+                minLimit = lim.Min;
+                maxLimit = lim.Max;
+            }
 
             AllChannels.Add(new ChannelDefinitionViewModel
             {
@@ -343,7 +357,9 @@ public partial class ChannelSelectionViewModel : ObservableObject
                 PostFix = postFix,
                 IsEnabled = true,
                 IsSelected = false,
-                CanSelect = true
+                CanSelect = true,
+                MinLimit = minLimit,
+                MaxLimit = maxLimit
             });
         }
 
@@ -352,6 +368,59 @@ public partial class ChannelSelectionViewModel : ObservableObject
             _channelByIndex[ch.Index] = ch;
 
         ApplyFilters();
+    }
+
+    // ─── Лимиты: сохранение/загрузка ────────────────────────────────────────
+
+    private const string LimitsPath = "channel_limits.json";
+
+    private class ChannelLimitEntry
+    {
+        public double? Min { get; set; }
+        public double? Max { get; set; }
+    }
+
+    private Dictionary<int, ChannelLimitEntry> LoadLimitsFromFile()
+    {
+        if (!File.Exists(LimitsPath)) return new Dictionary<int, ChannelLimitEntry>();
+        try
+        {
+            var json = File.ReadAllText(LimitsPath);
+            var raw = JsonSerializer.Deserialize<Dictionary<string, ChannelLimitEntry>>(json);
+            if (raw == null) return new Dictionary<int, ChannelLimitEntry>();
+            var result = new Dictionary<int, ChannelLimitEntry>();
+            foreach (var kvp in raw)
+                if (int.TryParse(kvp.Key, out var idx))
+                    result[idx] = kvp.Value;
+            return result;
+        }
+        catch { return new Dictionary<int, ChannelLimitEntry>(); }
+    }
+
+    private void SaveLimitsToFile()
+    {
+        try
+        {
+            var dict = new Dictionary<string, ChannelLimitEntry>();
+            foreach (var ch in AllChannels)
+                if (ch.MinLimit.HasValue || ch.MaxLimit.HasValue)
+                    dict[ch.Index.ToString()] = new ChannelLimitEntry { Min = ch.MinLimit, Max = ch.MaxLimit };
+            File.WriteAllText(LimitsPath,
+                JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { }
+    }
+
+    private void ApplyLimitsToRegistry()
+    {
+        foreach (var ch in AllChannels)
+        {
+            if (ChannelRegistry.All.TryGetValue(ch.Index, out var def))
+            {
+                def.MinLimit = ch.MinLimit;
+                def.MaxLimit = ch.MaxLimit;
+            }
+        }
     }
 
     private void LoadPresets()

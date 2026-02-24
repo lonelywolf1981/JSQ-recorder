@@ -8,6 +8,7 @@ using JSQ.Core.Models;
 using JSQ.Decode;
 using JSQ.Rules;
 using JSQ.Storage;
+using System.Globalization;
 
 namespace JSQ.UI.WPF.ViewModels;
 
@@ -139,23 +140,21 @@ public class ExperimentService : IExperimentService, IDisposable
             var anomalyDetector = new AnomalyDetector(experiment.Id);
             var aggregationService = new AggregationService(experiment.AggregationIntervalSec);
 
-            // Правила только для каналов этого поста
+            // Правила для всех каналов поста: лимиты из реестра + таймаут NoData
             var rules = new List<AnomalyRule>();
             foreach (var idx in channelIndices)
             {
-                if (!ChannelRegistry.All.TryGetValue(idx, out var def)) continue;
-                if (def.MinLimit.HasValue || def.MaxLimit.HasValue)
+                ChannelRegistry.All.TryGetValue(idx, out var def);
+                rules.Add(new AnomalyRule
                 {
-                    rules.Add(new AnomalyRule
-                    {
-                        ChannelIndex = idx,
-                        ChannelName = def.Name,
-                        MinLimit = def.MinLimit,
-                        MaxLimit = def.MaxLimit,
-                        Enabled = true,
-                        DebounceCount = 3
-                    });
-                }
+                    ChannelIndex = idx,
+                    ChannelName = def?.Name ?? $"v{idx:D3}",
+                    MinLimit = def?.MinLimit,
+                    MaxLimit = def?.MaxLimit,
+                    Enabled = true,
+                    DebounceCount = 3,
+                    NoDataTimeoutSec = 10
+                });
             }
             anomalyDetector.LoadRules(rules);
 
@@ -406,7 +405,7 @@ public class ExperimentService : IExperimentService, IDisposable
                 if (sample.IsValid)
                 {
                     foreach (var evt in state.AnomalyDetector.CheckValue(sample.ChannelIndex, sample.Value, sample.Timestamp))
-                        PostAnomalyDetected?.Invoke(postId, evt);
+                        FirePostAnomaly(postId, state, evt);
                 }
             }
         }
@@ -489,11 +488,11 @@ public class ExperimentService : IExperimentService, IDisposable
             foreach (var agg in state.AggregationService.GetReadyAggregates())
             {
                 foreach (var evt in state.AnomalyDetector.CheckAggregate(agg))
-                    PostAnomalyDetected?.Invoke(state.PostId, evt);
+                    FirePostAnomaly(state.PostId, state, evt);
             }
 
             foreach (var evt in state.AnomalyDetector.CheckTimeouts(DateTime.Now))
-                PostAnomalyDetected?.Invoke(state.PostId, evt);
+                FirePostAnomaly(state.PostId, state, evt);
         }
     }
 
@@ -505,6 +504,42 @@ public class ExperimentService : IExperimentService, IDisposable
             LastSampleTimestamp = DateTime.Now.ToString("O")
         };
         await _experimentRepo.SaveCheckpointAsync(state.Experiment.Id, checkpoint);
+    }
+
+    // ─── Вспомогательные методы ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Пробрасывает событие аномалии в UI и сохраняет в БД.
+    /// </summary>
+    private void FirePostAnomaly(string postId, PostState state, AnomalyEvent evt)
+    {
+        PostAnomalyDetected?.Invoke(postId, evt);
+        _ = Task.Run(async () =>
+        {
+            try { await _experimentRepo.SaveAnomalyEventAsync(evt); }
+            catch { }
+        });
+    }
+
+    public async Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId)
+    {
+        try
+        {
+            var records = await _experimentRepo.GetAnomalyEventsAsync(experimentId);
+            return records.Select(r =>
+            {
+                DateTime.TryParse(r.Timestamp, null, DateTimeStyles.RoundtripKind, out var ts);
+                return new ChannelEventRecord
+                {
+                    Timestamp = ts,
+                    ChannelName = r.ChannelName,
+                    EventType = r.AnomalyType,
+                    Value = r.Value,
+                    Threshold = r.Threshold
+                };
+            }).ToList();
+        }
+        catch { return new List<ChannelEventRecord>(); }
     }
 
     public void Dispose()

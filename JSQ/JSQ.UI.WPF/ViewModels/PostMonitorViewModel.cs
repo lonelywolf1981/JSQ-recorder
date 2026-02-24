@@ -44,6 +44,10 @@ public partial class PostMonitorViewModel : ObservableObject
     [ObservableProperty]
     private Experiment? _currentExperiment;
 
+    /// <summary>ID последнего запущенного эксперимента — сохраняется и после остановки.</summary>
+    [ObservableProperty]
+    private string _lastExperimentId = string.Empty;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AnomalyBadge))]
     [NotifyPropertyChangedFor(nameof(HasAnomalies))]

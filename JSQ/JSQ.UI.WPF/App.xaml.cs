@@ -106,4 +106,7 @@ public class ExperimentServiceStub : IExperimentService
     public Task<List<(DateTime time, double value)>> LoadChannelHistoryAsync(
         int channelIndex, DateTime startTime, DateTime endTime)
         => Task.FromResult(new List<(DateTime, double)>());
+
+    public Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId)
+        => Task.FromResult(new List<ChannelEventRecord>());
 }

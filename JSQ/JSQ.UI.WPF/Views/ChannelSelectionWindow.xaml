@@ -108,8 +108,16 @@
                         <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="80"/>
                         <DataGridTextColumn Header="Ед."      Binding="{Binding Unit}"                       Width="50"/>
                         <DataGridTextColumn Header="Описание" Binding="{Binding Description}"                Width="*"/>
-                        <DataGridTextColumn Header="Min"      Binding="{Binding MinLimit}"                   Width="55"/>
-                        <DataGridTextColumn Header="Max"      Binding="{Binding MaxLimit}"                   Width="55"/>
+                        <DataGridTextColumn Header="Min" Width="55">
+                            <DataGridTextColumn.Binding>
+                                <Binding Path="MinLimit" TargetNullValue=""/>
+                            </DataGridTextColumn.Binding>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Max" Width="55">
+                            <DataGridTextColumn.Binding>
+                                <Binding Path="MaxLimit" TargetNullValue=""/>
+                            </DataGridTextColumn.Binding>
+                        </DataGridTextColumn>
 
                         <!-- Показываем какой пост занял канал -->
                         <DataGridTemplateColumn Header="Занят" Width="55" SortMemberPath="TakenByPost">

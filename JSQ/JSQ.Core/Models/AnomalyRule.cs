@@ -12,6 +12,8 @@ public enum AnomalyType
     MaxViolation,      // Выше максимума
     DeltaSpike,        // Резкий скачок
     NoData,            // Нет данных
+    DataRestored,      // Данные восстановлены после отсутствия
+    LimitsRestored,    // Значение вернулось в допустимые пределы
     QualityDegraded,   // Ухудшение качества
     QualityBad         // Плохое качество
 }

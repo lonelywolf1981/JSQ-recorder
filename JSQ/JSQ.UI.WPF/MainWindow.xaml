@@ -100,6 +100,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
                                 <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
@@ -132,6 +133,9 @@
                                 <Button Grid.Column="5" Content="📋 Каналы"
                                         Command="{Binding OpenChannelsForPostCommand}" CommandParameter="A"
                                         Margin="8,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="6" Content="📊 История"
+                                        Command="{Binding OpenEventHistoryCommand}" CommandParameter="A"
+                                        Margin="4,0,0,0" Padding="8,3"/>
                             </Grid>
                         </Border>
 
@@ -217,6 +221,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
                                     <Border.Background>
@@ -245,6 +250,9 @@
                                 <Button Grid.Column="5" Content="📋 Каналы"
                                         Command="{Binding OpenChannelsForPostCommand}" CommandParameter="B"
                                         Margin="8,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="6" Content="📊 История"
+                                        Command="{Binding OpenEventHistoryCommand}" CommandParameter="B"
+                                        Margin="4,0,0,0" Padding="8,3"/>
                             </Grid>
                         </Border>
 
@@ -330,6 +338,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
                                     <Border.Background>
@@ -358,6 +367,9 @@
                                 <Button Grid.Column="5" Content="📋 Каналы"
                                         Command="{Binding OpenChannelsForPostCommand}" CommandParameter="C"
                                         Margin="8,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="6" Content="📊 История"
+                                        Command="{Binding OpenEventHistoryCommand}" CommandParameter="C"
+                                        Margin="4,0,0,0" Padding="8,3"/>
                             </Grid>
                         </Border>
 
@@ -485,7 +497,24 @@
                         <Border BorderBrush="Gray" BorderThickness="1" Padding="10" CornerRadius="3">
                             <StackPanel>
                                 <TextBlock FontSize="22" FontWeight="Bold" HorizontalAlignment="Center"
-                                           Text="{Binding SystemHealth.OverallStatus}"/>
+                                           Text="{Binding SystemHealthStatusText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="Gray"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SystemHealth.OverallStatus}" Value="OK">
+                                                    <Setter Property="Foreground" Value="Green"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SystemHealth.OverallStatus}" Value="Warning">
+                                                    <Setter Property="Foreground" Value="Orange"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SystemHealth.OverallStatus}" Value="Alarm">
+                                                    <Setter Property="Foreground" Value="Red"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <Separator Margin="0,8"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -497,6 +526,7 @@
                                         <RowDefinition/>
                                         <RowDefinition/>
                                         <RowDefinition/>
+                                        <RowDefinition/>
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Каналов:"/>
                                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemHealth.TotalChannels}"
@@ -504,12 +534,15 @@
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="OK:" Foreground="Green"/>
                                     <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SystemHealth.ChannelsOK}"
                                                HorizontalAlignment="Right" Foreground="Green"/>
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Warning:" Foreground="Orange"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Предупреждения:" Foreground="Orange"/>
                                     <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SystemHealth.ChannelsWarning}"
                                                HorizontalAlignment="Right" Foreground="Orange"/>
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Alarm:" Foreground="Red"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Отключены:" Foreground="Red"/>
                                     <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SystemHealth.ChannelsAlarm}"
                                                HorizontalAlignment="Right" Foreground="Red"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Нет данных:" Foreground="Gray"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SystemHealth.ChannelsNoData}"
+                                               HorizontalAlignment="Right" Foreground="Gray"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -634,6 +667,9 @@
                                                         <DataTrigger Binding="{Binding Level}" Value="Error">
                                                             <Setter Property="Background" Value="#FFCDD2"/>
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Level}" Value="Info">
+                                                            <Setter Property="Background" Value="#E8F5E9"/>
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
@@ -677,6 +713,9 @@
                             </DataTrigger>
                             <DataTrigger Binding="{Binding Level}" Value="Warning">
                                 <Setter Property="Background" Value="#FFF9C4"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="Info">
+                                <Setter Property="Background" Value="#E8F5E9"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
