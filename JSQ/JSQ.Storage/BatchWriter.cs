@@ -66,8 +66,6 @@ public class BatchWriter : IBatchWriter
     
     public void AddSamples(string experimentId, IEnumerable<Sample> samples)
     {
-        var timestamp = DateTime.Now.ToString("O");
-        
         lock (_lock)
         {
             foreach (var sample in samples)
@@ -77,11 +75,11 @@ public class BatchWriter : IBatchWriter
                     _stats.DroppedSamples++;
                     continue;
                 }
-                
+
                 _buffer.Add(new SampleToWrite
                 {
                     ExperimentId = experimentId,
-                    Timestamp = timestamp,
+                    Timestamp = sample.Timestamp.ToString("O"),
                     ChannelIndex = sample.ChannelIndex,
                     Value = sample.Value,
                     IsValid = sample.IsValid

@@ -156,45 +156,59 @@ public class AggregationService : IAggregationService
     private class WindowState
     {
         private readonly SortedDictionary<DateTime, AggregationWindow> _windows = new();
-        
+        private readonly object _windowsLock = new();
+
         public AggregationWindow GetOrCreateWindow(DateTime windowStart, int intervalSeconds)
         {
-            if (!_windows.TryGetValue(windowStart, out var window))
+            lock (_windowsLock)
             {
-                window = new AggregationWindow(windowStart, intervalSeconds);
-                _windows[windowStart] = window;
+                if (!_windows.TryGetValue(windowStart, out var window))
+                {
+                    window = new AggregationWindow(windowStart, intervalSeconds);
+                    _windows[windowStart] = window;
+                }
+                return window;
             }
-            
-            return window;
         }
-        
+
         public IEnumerable<AggregationWindow> GetCompletedWindows(DateTime now, int intervalSeconds)
         {
             var completed = new List<AggregationWindow>();
-            var cutoff = now.AddSeconds(-intervalSeconds * 2); // Буфер на задержку
-            
-            foreach (var kvp in _windows.ToList())
+
+            lock (_windowsLock)
             {
-                if (kvp.Value.IsCompleted(now))
+                foreach (var kvp in _windows.ToList())
                 {
-                    completed.Add(kvp.Value);
-                    _windows.Remove(kvp.Key);
+                    if (kvp.Value.IsCompleted(now))
+                    {
+                        completed.Add(kvp.Value);
+                        _windows.Remove(kvp.Key);
+                    }
                 }
             }
-            
+
             return completed;
         }
-        
+
         public IEnumerable<AggregationWindow> GetAllWindows()
         {
-            var all = _windows.Values.ToList();
-            _windows.Clear();
-            return all;
+            lock (_windowsLock)
+            {
+                var all = _windows.Values.ToList();
+                _windows.Clear();
+                return all;
+            }
         }
-        
-        public int GetWindowCount() => _windows.Count;
-        
-        public void Clear() => _windows.Clear();
+
+        public int GetWindowCount()
+        {
+            lock (_windowsLock) return _windows.Count;
+        }
+
+        public void Clear()
+        {
+            lock (_windowsLock) _windows.Clear();
+        }
     }
     
     /// <summary>

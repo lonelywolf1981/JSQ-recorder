@@ -56,12 +56,12 @@ public class SqliteDatabaseService : IDatabaseService
             Directory.CreateDirectory(directory);
         }
         
-        // Connection string с WAL mode
+        // Connection string с WAL mode (Shared cache несовместим с WAL)
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = dbPath,
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared
+            Cache = SqliteCacheMode.Default
         };
         
         _connectionString = builder.ToString();

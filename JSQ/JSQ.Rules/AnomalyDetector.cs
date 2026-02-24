@@ -162,7 +162,18 @@ public class AnomalyDetector : IAnomalyDetector
         
         state.LastValue = value;
         state.LastCheckTime = timestamp;
-        
+
+        // Немедленно генерируем DataRestored при получении данных после NoData,
+        // не дожидаясь следующего вызова CheckTimeouts
+        if (state.HasNoDataEvent)
+        {
+            ClearViolation(channelIndex, AnomalyType.NoData);
+            state.HasNoDataEvent = false;
+            var recovery = CreateEvent(channelIndex, rule.ChannelName, AnomalyType.DataRestored,
+                value, null, $"Данные восстановлены: {rule.ChannelName}");
+            events.Add(recovery);
+        }
+
         return events;
     }
     

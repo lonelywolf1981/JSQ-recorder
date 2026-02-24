@@ -28,6 +28,7 @@ public class ExperimentService : IExperimentService, IDisposable
     // Роутинг: channelIndex → HashSet<postId> (один канал может идти в несколько постов)
     private readonly Dictionary<int, HashSet<string>> _channelPostMap = new();
     private readonly object _stateLock = new();
+    private readonly SemaphoreSlim _monitoringLock = new(1, 1);
 
     // Параметры подключения
     private string _host = "192.168.0.214";
@@ -42,6 +43,7 @@ public class ExperimentService : IExperimentService, IDisposable
     public event Func<int, DateTime, DateTime, Task<List<(DateTime time, double value)>>>? LoadChannelHistoryRequested;
 
     private CancellationTokenSource? _healthUpdateCts;
+    private Task _initTask = Task.CompletedTask;
 
     public ExperimentService(IDatabaseService dbService, IBatchWriter batchWriter, IExperimentRepository experimentRepo)
     {
@@ -53,7 +55,7 @@ public class ExperimentService : IExperimentService, IDisposable
         _captureService.DataReceived += OnDataReceived;
         _captureService.StatusChanged += OnStatusChanged;
 
-        Task.Run(async () => { try { await _dbService.InitializeAsync(); } catch { } });
+        _initTask = Task.Run(async () => { try { await _dbService.InitializeAsync(); } catch { } });
 
         StartHealthUpdates();
     }
@@ -79,6 +81,7 @@ public class ExperimentService : IExperimentService, IDisposable
     {
         _host = host;
         _port = port;
+        _captureService.ConnectionTimeoutMs = timeoutMs;
     }
 
     public void BeginMonitoring()
@@ -88,9 +91,14 @@ public class ExperimentService : IExperimentService, IDisposable
 
         Task.Run(async () =>
         {
+            // Защита от параллельных переподключений (например, повторный Save в настройках)
+            if (!await _monitoringLock.WaitAsync(0))
+                return;
+
             try
             {
-                if (_captureService.Status == ConnectionStatus.Connected)
+                if (_captureService.Status == ConnectionStatus.Connected ||
+                    _captureService.Status == ConnectionStatus.Connecting)
                     await _captureService.DisconnectAsync();
 
                 LogReceived?.Invoke(new LogEntry
@@ -120,6 +128,10 @@ public class ExperimentService : IExperimentService, IDisposable
                     Source = "System",
                     Message = $"Не удалось подключиться к {host}:{port}: {ex.Message}"
                 });
+            }
+            finally
+            {
+                _monitoringLock.Release();
             }
         });
     }
@@ -185,6 +197,7 @@ public class ExperimentService : IExperimentService, IDisposable
         {
             try
             {
+                await _initTask;
                 await _experimentRepo.CreateAsync(experiment);
                 LogReceived?.Invoke(new LogEntry
                 {
@@ -542,6 +555,43 @@ public class ExperimentService : IExperimentService, IDisposable
         catch { return new List<ChannelEventRecord>(); }
     }
 
+    public async Task<List<ExperimentChannelInfo>> GetExperimentChannelsAsync(string experimentId)
+    {
+        try
+        {
+            var indices = await _experimentRepo.GetExperimentChannelIndicesAsync(experimentId);
+            return indices
+                .Select(idx =>
+                {
+                    ChannelRegistry.All.TryGetValue(idx, out var def);
+                    return new ExperimentChannelInfo
+                    {
+                        ChannelIndex = idx,
+                        ChannelName = def?.Name ?? $"v{idx:D3}",
+                        Unit = def?.Unit ?? string.Empty
+                    };
+                })
+                .OrderBy(c => c.ChannelName)
+                .ToList();
+        }
+        catch
+        {
+            return new List<ExperimentChannelInfo>();
+        }
+    }
+
+    public async Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId)
+    {
+        try
+        {
+            return await _experimentRepo.GetExperimentDataRangeAsync(experimentId);
+        }
+        catch
+        {
+            return (null, null);
+        }
+    }
+
     public void Dispose()
     {
         _healthUpdateCts?.Cancel();
@@ -549,6 +599,7 @@ public class ExperimentService : IExperimentService, IDisposable
         _batchWriter.Dispose();
         _dbService.Dispose();
         _healthUpdateCts?.Dispose();
+        _monitoringLock.Dispose();
     }
     
     // ─── Загрузка истории для графиков ──────────────────────────────────────
@@ -563,6 +614,22 @@ public class ExperimentService : IExperimentService, IDisposable
         {
             // Ищем по всем экспериментам в диапазоне дат — корректно при нескольких постах
             return await _experimentRepo.GetChannelHistoryAnyAsync(channelIndex, startTime, endTime);
+        }
+        catch
+        {
+            return new List<(DateTime, double)>();
+        }
+    }
+
+    public async Task<List<(DateTime time, double value)>> LoadExperimentChannelHistoryAsync(
+        string experimentId,
+        int channelIndex,
+        DateTime startTime,
+        DateTime endTime)
+    {
+        try
+        {
+            return await _experimentRepo.GetChannelHistoryAsync(experimentId, channelIndex, startTime, endTime);
         }
         catch
         {

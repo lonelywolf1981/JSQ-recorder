@@ -16,7 +16,7 @@ namespace JSQ.UI.WPF.ViewModels;
 /// </summary>
 public partial class ChannelSelectionViewModel : ObservableObject
 {
-    private readonly string _presetsPath = "channel_presets.json";
+    private readonly string _presetsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "channel_presets.json");
 
     // Текущий пост, для которого открыт диалог
     public string CurrentPostId { get; private set; } = string.Empty;
@@ -372,7 +372,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
 
     // ─── Лимиты: сохранение/загрузка ────────────────────────────────────────
 
-    private const string LimitsPath = "channel_limits.json";
+    private static readonly string LimitsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "channel_limits.json");
 
     private class ChannelLimitEntry
     {

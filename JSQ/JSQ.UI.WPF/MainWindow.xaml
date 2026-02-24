@@ -101,6 +101,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
                                 <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
@@ -135,6 +136,9 @@
                                         Margin="8,0,0,0" Padding="8,3"/>
                                 <Button Grid.Column="6" Content="📊 История"
                                         Command="{Binding OpenEventHistoryCommand}" CommandParameter="A"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="7" Content="💾 Экспорт"
+                                        Command="{Binding ExportPostCommand}" CommandParameter="A"
                                         Margin="4,0,0,0" Padding="8,3"/>
                             </Grid>
                         </Border>
@@ -222,6 +226,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
                                     <Border.Background>
@@ -252,6 +257,9 @@
                                         Margin="8,0,0,0" Padding="8,3"/>
                                 <Button Grid.Column="6" Content="📊 История"
                                         Command="{Binding OpenEventHistoryCommand}" CommandParameter="B"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="7" Content="💾 Экспорт"
+                                        Command="{Binding ExportPostCommand}" CommandParameter="B"
                                         Margin="4,0,0,0" Padding="8,3"/>
                             </Grid>
                         </Border>
@@ -339,6 +347,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
                                     <Border.Background>
@@ -369,6 +378,9 @@
                                         Margin="8,0,0,0" Padding="8,3"/>
                                 <Button Grid.Column="6" Content="📊 История"
                                         Command="{Binding OpenEventHistoryCommand}" CommandParameter="C"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="7" Content="💾 Экспорт"
+                                        Command="{Binding ExportPostCommand}" CommandParameter="C"
                                         Margin="4,0,0,0" Padding="8,3"/>
                             </Grid>
                         </Border>
@@ -639,8 +651,7 @@
                             </Border>
 
                             <TextBlock Text="Нет активных записей" FontStyle="Italic" Foreground="Gray"
-                                       FontSize="11" Margin="0,2"
-                                       Visibility="{Binding IsAnyPostRunning, Converter={StaticResource BoolToVis}}">
+                                       FontSize="11" Margin="0,2">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Visible"/>

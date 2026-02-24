@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JSQ.Core.Models;
+using JSQ.Export;
 using JSQ.UI.WPF.Views;
 
 namespace JSQ.UI.WPF.ViewModels;
@@ -18,9 +21,13 @@ namespace JSQ.UI.WPF.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly ExperimentService _experimentService;
+    private readonly ILegacyExportService _exportService;
     private readonly SettingsViewModel _settings;
     private readonly DispatcherTimer _staleChannelTimer;
     private static readonly TimeSpan StaleDataThreshold = TimeSpan.FromSeconds(5);
+    private string _appliedHost = string.Empty;
+    private int _appliedPort;
+    private int _appliedTimeoutMs;
 
     // channelIndex → список ChannelStatus (один per post, для Common-каналов их может быть несколько)
     private readonly Dictionary<int, List<ChannelStatus>> _channelMap = new();
@@ -90,9 +97,13 @@ public partial class MainViewModel : ObservableObject
     public int PostBCount => PostBChannels.Count;
     public int PostCCount => PostCChannels.Count;
 
-    public MainViewModel(ExperimentService experimentService, SettingsViewModel settings)
+    public MainViewModel(
+        ExperimentService experimentService,
+        ILegacyExportService exportService,
+        SettingsViewModel settings)
     {
         _experimentService = experimentService;
+        _exportService = exportService;
         _settings = settings;
 
         _experimentService.HealthUpdated += OnHealthUpdated;
@@ -114,6 +125,9 @@ public partial class MainViewModel : ObservableObject
             _settings.TransmitterHost,
             _settings.TransmitterPort,
             _settings.ConnectionTimeoutMs);
+        _appliedHost = _settings.TransmitterHost;
+        _appliedPort = _settings.TransmitterPort;
+        _appliedTimeoutMs = _settings.ConnectionTimeoutMs;
         _experimentService.BeginMonitoring();
 
         _settings.SaveCompleted += OnSettingsSaved;
@@ -122,16 +136,34 @@ public partial class MainViewModel : ObservableObject
 
     private void OnSettingsSaved()
     {
+        var connectionChanged =
+            !string.Equals(_appliedHost, _settings.TransmitterHost, StringComparison.OrdinalIgnoreCase) ||
+            _appliedPort != _settings.TransmitterPort ||
+            _appliedTimeoutMs != _settings.ConnectionTimeoutMs;
+
         // Не переподключаемся если идёт запись
-        if (!IsAnyPostRunning)
+        if (!IsAnyPostRunning && connectionChanged)
         {
             _experimentService.Configure(
                 _settings.TransmitterHost,
                 _settings.TransmitterPort,
                 _settings.ConnectionTimeoutMs);
             _experimentService.BeginMonitoring();
+
+            _appliedHost = _settings.TransmitterHost;
+            _appliedPort = _settings.TransmitterPort;
+            _appliedTimeoutMs = _settings.ConnectionTimeoutMs;
+            StatusMessage = $"Настройки сохранены. Переподключение к {_settings.TransmitterHost}:{_settings.TransmitterPort}";
+            return;
         }
-        StatusMessage = $"Настройки сохранены. Хост: {_settings.TransmitterHost}:{_settings.TransmitterPort}";
+
+        if (IsAnyPostRunning)
+        {
+            StatusMessage = "Настройки сохранены. Переподключение отложено до остановки записи";
+            return;
+        }
+
+        StatusMessage = "Настройки сохранены";
     }
 
     /// <summary>Назначает каналы по умолчанию: группа PostA → пост A, PostB → B, PostC → C.</summary>
@@ -373,6 +405,7 @@ public partial class MainViewModel : ObservableObject
 
         _experimentService.StopPost(postId);
         monitor.State = ExperimentState.Idle;
+        monitor.AnomalyCount = 0;
         monitor.CurrentExperiment = null;
 
         // После остановки записи снимаем «боевые» статусы канала.
@@ -389,25 +422,118 @@ public partial class MainViewModel : ObservableObject
         var now = DateTime.Now;
         foreach (var ch in GetPostChannels(postId))
         {
-            var hasFreshData = ch.LastUpdateTime != default &&
-                               (now - ch.LastUpdateTime) <= StaleDataThreshold;
+            // Оставляем Alarm видимым — оператор должен знать что был сбой
+            if (ch.Status == HealthStatus.Alarm) continue;
 
-            if (!hasFreshData || !ch.CurrentValue.HasValue)
-            {
-                ch.Status = HealthStatus.NoData;
-            }
-            else
-            {
-                ch.Status = HealthStatus.OK;
-            }
+            ch.Status = AlertStatusPolicy.ResolveAfterStop(
+                ch.LastUpdateTime,
+                ch.CurrentValue,
+                now,
+                StaleDataThreshold);
         }
     }
 
     [RelayCommand]
-    private void ExportPost(string postId)
+    private async Task ExportPost(string postId)
     {
-        // TODO: экспорт в DBF для конкретного поста
-        StatusMessage = $"Пост {postId}: экспорт...";
+        var monitor = GetPostMonitor(postId);
+        var experimentId = monitor.IsRunning
+            ? monitor.CurrentExperiment?.Id
+            : monitor.LastExperimentId;
+
+        if (string.IsNullOrWhiteSpace(experimentId))
+        {
+            StatusMessage = $"Пост {postId}: нечего экспортировать";
+            return;
+        }
+
+        var safeExperimentId = experimentId!;
+
+        try
+        {
+            var outputRoot = string.IsNullOrWhiteSpace(_settings.ExportPath)
+                ? "export"
+                : _settings.ExportPath;
+
+            var defaultPath = BuildDefaultExportDbfPath(outputRoot);
+            var dlg = new SaveFileDialog
+            {
+                Title = "Экспорт в legacy-пакет",
+                Filter = "DBF файл (*.dbf)|*.dbf",
+                FileName = Path.GetFileName(defaultPath),
+                InitialDirectory = Path.GetDirectoryName(defaultPath),
+                AddExtension = true,
+                DefaultExt = ".dbf",
+                OverwritePrompt = false,
+                CheckPathExists = true
+            };
+
+            var accepted = dlg.ShowDialog(Application.Current.MainWindow) == true;
+            if (!accepted)
+            {
+                StatusMessage = $"Пост {postId}: экспорт отменён";
+                return;
+            }
+
+            var targetDirectory = Path.GetDirectoryName(dlg.FileName);
+            var packageName = Path.GetFileNameWithoutExtension(dlg.FileName);
+            if (string.IsNullOrWhiteSpace(targetDirectory) || string.IsNullOrWhiteSpace(packageName))
+            {
+                StatusMessage = $"Пост {postId}: некорректный путь экспорта";
+                return;
+            }
+
+            _settings.ExportPath = targetDirectory;
+
+            var result = await _exportService.ExportExperimentAsync(safeExperimentId, targetDirectory, packageName);
+            StatusMessage = $"Пост {postId}: экспорт завершён ({result.PackageName}, {result.RecordCount} строк)";
+
+            LogEntries.Insert(0, new LogEntry
+            {
+                Timestamp = DateTime.Now,
+                Level = "Info",
+                Source = "Export",
+                Post = postId,
+                Message = $"Экспорт: {result.PackageDirectory}"
+            });
+            while (LogEntries.Count > 1000)
+                LogEntries.RemoveAt(LogEntries.Count - 1);
+
+            MessageBox.Show(
+                $"Экспорт завершён.\nПапка: {result.PackageDirectory}",
+                "JSQ Export",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Пост {postId}: ошибка экспорта — {ex.Message}";
+            MessageBox.Show(
+                ex.Message,
+                "Ошибка экспорта",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private static string BuildDefaultExportDbfPath(string outputRoot)
+    {
+        var root = Path.GetFullPath(string.IsNullOrWhiteSpace(outputRoot) ? "export" : outputRoot);
+        Directory.CreateDirectory(root);
+
+        var max = 0;
+        foreach (var dir in Directory.GetDirectories(root, "Prova*"))
+        {
+            var name = Path.GetFileName(dir);
+            if (!string.IsNullOrWhiteSpace(name) && name.StartsWith("Prova", StringComparison.OrdinalIgnoreCase))
+            {
+                var numeric = new string(name.Skip(5).TakeWhile(char.IsDigit).ToArray());
+                if (int.TryParse(numeric, out var value) && value > max)
+                    max = value;
+            }
+        }
+
+        return Path.Combine(root, $"Prova{max + 1:D3}.dbf");
     }
 
     [RelayCommand]
@@ -424,9 +550,11 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
+        var safeExperimentId = experimentId!;
+
         var experimentName = monitor.CurrentExperiment?.Name
             ?? $"Пост {postId} — последний эксперимент";
-        var window = new Views.EventHistoryWindow(experimentId, experimentName, _experimentService)
+        var window = new Views.EventHistoryWindow(safeExperimentId, experimentName, _experimentService)
         {
             Owner = Application.Current.MainWindow
         };
@@ -459,7 +587,7 @@ public partial class MainViewModel : ObservableObject
 
     private void OnChannelValueReceived(int index, double value)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        Application.Current.Dispatcher.BeginInvoke(() =>
         {
             if (!_channelMap.TryGetValue(index, out var statuses)) return;
 
@@ -480,7 +608,12 @@ public partial class MainViewModel : ObservableObject
                     // Данные пришли — канал живой. Статус определяем по лимитам
                     // (проверка лимитов актуальна только во время записи)
                     var monitor = GetPostMonitor(ch.Post);
-                    if (monitor.IsRunning && def != null &&
+                    if (!monitor.IsRunning)
+                    {
+                        // Вне записи канал не подсвечиваем как OK — остаётся серым.
+                        ch.Status = HealthStatus.NoData;
+                    }
+                    else if (def != null &&
                         ((def.MinLimit.HasValue && value < def.MinLimit.Value) ||
                          (def.MaxLimit.HasValue && value > def.MaxLimit.Value)))
                     {
@@ -585,7 +718,7 @@ public partial class MainViewModel : ObservableObject
             foreach (var ch in statuses)
             {
                 var isRunning = !string.IsNullOrEmpty(ch.Post) && GetPostMonitor(ch.Post).IsRunning;
-                var isStale = (now - ch.LastUpdateTime) > StaleDataThreshold;
+                var isStale = AlertStatusPolicy.IsStale(ch.LastUpdateTime, now, StaleDataThreshold);
 
                 if (!isRunning)
                 {
@@ -607,7 +740,7 @@ public partial class MainViewModel : ObservableObject
 
     private void OnHealthUpdated(SystemHealth health)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        Application.Current.Dispatcher.BeginInvoke(() =>
         {
             // Считаем реальные статусы каналов из UI-модели
             int ok = 0, warning = 0, alarm = 0, noData = 0;
@@ -698,6 +831,16 @@ public interface IExperimentService
     Task<List<(DateTime time, double value)>> LoadChannelHistoryAsync(
         int channelIndex, DateTime startTime, DateTime endTime);
 
+    Task<List<(DateTime time, double value)>> LoadExperimentChannelHistoryAsync(
+        string experimentId,
+        int channelIndex,
+        DateTime startTime,
+        DateTime endTime);
+
+    Task<List<ExperimentChannelInfo>> GetExperimentChannelsAsync(string experimentId);
+
+    Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId);
+
     Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId);
 }
 
@@ -724,4 +867,15 @@ public class ChannelEventRecord
         "QualityBad"      => "Плохое качество",
         _                 => EventType
     };
+}
+
+public class ExperimentChannelInfo
+{
+    public int ChannelIndex { get; set; }
+    public string ChannelName { get; set; } = string.Empty;
+    public string Unit { get; set; } = string.Empty;
+
+    public string DisplayName => string.IsNullOrWhiteSpace(Unit)
+        ? $"{ChannelName} (v{ChannelIndex:D3})"
+        : $"{ChannelName} [{Unit}] (v{ChannelIndex:D3})";
 }

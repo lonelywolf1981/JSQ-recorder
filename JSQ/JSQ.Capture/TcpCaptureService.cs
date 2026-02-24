@@ -33,6 +33,8 @@ public class TcpCaptureService : ITcpCaptureService
     private int _port = 55555;
     private int _connectionTimeoutMs = 5000;
     private int _readTimeoutMs = 1000;
+
+    public int ConnectionTimeoutMs { get => _connectionTimeoutMs; set => _connectionTimeoutMs = value; }
     
     public IReadOnlyList<NetworkInterfaceInfo> AvailableInterfaces { get; private set; } 
         = new List<NetworkInterfaceInfo>();
@@ -315,7 +317,7 @@ public class TcpCaptureService : ITcpCaptureService
     
     public void Dispose()
     {
-        DisconnectAsync(CancellationToken.None).Wait(TimeSpan.FromSeconds(2));
+        Task.Run(() => DisconnectAsync(CancellationToken.None)).Wait(TimeSpan.FromSeconds(2));
         GC.SuppressFinalize(this);
     }
 }
