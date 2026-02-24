@@ -12,7 +12,12 @@ public partial class SettingsWindow : Window
 
         viewModel.SaveCompleted += () =>
         {
-            DialogResult = viewModel.Saved;
+            DialogResult = true;
+            Close();
+        };
+        viewModel.CancelRequested += () =>
+        {
+            DialogResult = false;
             Close();
         };
     }

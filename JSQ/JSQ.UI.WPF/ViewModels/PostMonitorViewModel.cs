@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using JSQ.Core.Models;
 
@@ -11,9 +12,13 @@ public partial class PostMonitorViewModel : ObservableObject
 {
     public string PostId { get; }
 
+    private readonly DispatcherTimer _durationTimer;
+
     public PostMonitorViewModel(string postId)
     {
         PostId = postId;
+        _durationTimer = new DispatcherTimer { Interval = System.TimeSpan.FromSeconds(1) };
+        _durationTimer.Tick += (_, _) => OnPropertyChanged(nameof(DurationDisplay));
     }
 
     [ObservableProperty]
@@ -24,6 +29,17 @@ public partial class PostMonitorViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanStart))]
     [NotifyPropertyChangedFor(nameof(CanStop))]
     private ExperimentState _state = ExperimentState.Idle;
+
+    partial void OnStateChanged(ExperimentState value)
+    {
+        if (value == ExperimentState.Running)
+            _durationTimer.Start();
+        else
+        {
+            _durationTimer.Stop();
+            OnPropertyChanged(nameof(DurationDisplay));
+        }
+    }
 
     [ObservableProperty]
     private Experiment? _currentExperiment;
@@ -47,6 +63,10 @@ public partial class PostMonitorViewModel : ObservableObject
         ExperimentState.Running => _brushRunning,
         _                       => _brushIdle
     };
+
+    public string DurationDisplay => IsRunning && CurrentExperiment != null
+        ? CurrentExperiment.Duration.ToString(@"hh\:mm\:ss")
+        : "—";
 
     public string AnomalyBadge => AnomalyCount > 0 ? $"⚠ {AnomalyCount}" : string.Empty;
     public bool HasAnomalies => AnomalyCount > 0;

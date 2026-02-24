@@ -24,8 +24,8 @@ public class ExperimentService : IExperimentService, IDisposable
 
     // Состояние каждого поста
     private readonly Dictionary<string, PostState> _postStates = new();
-    // Быстрый роутинг: channelIndex → postId
-    private readonly Dictionary<int, string> _channelPostMap = new();
+    // Роутинг: channelIndex → HashSet<postId> (один канал может идти в несколько постов)
+    private readonly Dictionary<int, HashSet<string>> _channelPostMap = new();
     private readonly object _stateLock = new();
 
     // Параметры подключения
@@ -169,9 +169,13 @@ public class ExperimentService : IExperimentService, IDisposable
 
             _postStates[postId] = state;
 
-            // Регистрируем каналы в роутинге
+            // Регистрируем каналы в роутинге (один канал может идти в несколько постов)
             foreach (var idx in channelIndices)
-                _channelPostMap[idx] = postId;
+            {
+                if (!_channelPostMap.TryGetValue(idx, out var set))
+                    _channelPostMap[idx] = set = new HashSet<string>();
+                set.Add(postId);
+            }
         }
 
         // Сохраняем в БД асинхронно
@@ -269,9 +273,15 @@ public class ExperimentService : IExperimentService, IDisposable
             state.IsRunning = false;
             _postStates.Remove(postId);
 
-            // Удаляем каналы из роутинга
+            // Удаляем только этот пост из роутинга (канал может остаться в других постах)
             foreach (var idx in state.ChannelIndices)
-                _channelPostMap.Remove(idx);
+            {
+                if (_channelPostMap.TryGetValue(idx, out var set))
+                {
+                    set.Remove(postId);
+                    if (set.Count == 0) _channelPostMap.Remove(idx);
+                }
+            }
         }
 
         var experiment = state.Experiment;
@@ -347,23 +357,27 @@ public class ExperimentService : IExperimentService, IDisposable
         {
             if (_postStates.Count == 0) return;
 
-            // Группируем значения по постам
+            // Группируем значения по постам (один канал может идти в несколько постов)
             Dictionary<string, List<Sample>>? bySt = null;
             foreach (var cv in values)
             {
-                if (!_channelPostMap.TryGetValue(cv.Index, out var pid)) continue;
-                if (!_postStates.TryGetValue(pid, out var ps)) continue;
-                if (!ps.IsRunning || ps.IsPaused) continue;
-
-                bySt ??= new Dictionary<string, List<Sample>>();
-                if (!bySt.TryGetValue(pid, out var list))
-                {
-                    list = new List<Sample>();
-                    bySt[pid] = list;
-                }
-
+                if (!_channelPostMap.TryGetValue(cv.Index, out var postSet)) continue;
                 double storageValue = double.IsNaN(cv.Value) ? -99.0 : cv.Value;
-                list.Add(new Sample(cv.Index, storageValue, cv.Timestamp));
+                var sample = new Sample(cv.Index, storageValue, cv.Timestamp);
+
+                foreach (var pid in postSet)
+                {
+                    if (!_postStates.TryGetValue(pid, out var ps)) continue;
+                    if (!ps.IsRunning || ps.IsPaused) continue;
+
+                    bySt ??= new Dictionary<string, List<Sample>>();
+                    if (!bySt.TryGetValue(pid, out var list))
+                    {
+                        list = new List<Sample>();
+                        bySt[pid] = list;
+                    }
+                    list.Add(sample);
+                }
             }
 
             if (bySt == null) return;

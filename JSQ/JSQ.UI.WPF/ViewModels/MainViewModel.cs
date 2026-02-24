@@ -20,11 +20,11 @@ public partial class MainViewModel : ObservableObject
     private readonly SettingsViewModel _settings;
     private readonly DispatcherTimer _staleChannelTimer;
 
-    // Единый lookup: channelIndex → ChannelStatus (O(1) обновления)
-    private readonly Dictionary<int, ChannelStatus> _channelMap = new();
+    // channelIndex → список ChannelStatus (один per post, для Common-каналов их может быть несколько)
+    private readonly Dictionary<int, List<ChannelStatus>> _channelMap = new();
 
-    // Назначение каналов на посты: channelIndex → "A"/"B"/"C"
-    private readonly Dictionary<int, string> _channelPostAssignment = new();
+    // channelIndex → HashSet<postId> (Common-каналы могут принадлежать нескольким постам)
+    private readonly Dictionary<int, HashSet<string>> _channelPostAssignment = new();
 
     // --- Состояние постов (мониторинг) ---
 
@@ -63,8 +63,14 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<LogEntry> _logEntries = new();
 
+    /// <summary>Последние предупреждения/аномалии для панели Статус.</summary>
+    public ObservableCollection<LogEntry> RecentAlerts { get; } = new();
+
     [ObservableProperty]
     private string _statusMessage = "Готов";
+
+    /// <summary>True если хотя бы один пост ведёт запись.</summary>
+    public bool IsAnyPostRunning => PostA.IsRunning || PostB.IsRunning || PostC.IsRunning;
 
     // Количество каналов на каждом посту (для заголовка вкладки)
     public int PostACount => PostAChannels.Count;
@@ -98,16 +104,21 @@ public partial class MainViewModel : ObservableObject
         _experimentService.BeginMonitoring();
 
         _settings.SaveCompleted += OnSettingsSaved;
+        // CancelRequested — просто закрывает окно, BeginMonitoring не вызываем
     }
 
     private void OnSettingsSaved()
     {
-        _experimentService.Configure(
-            _settings.TransmitterHost,
-            _settings.TransmitterPort,
-            _settings.ConnectionTimeoutMs);
-        _experimentService.BeginMonitoring();
-        StatusMessage = $"Настройки сохранены. Подключение к {_settings.TransmitterHost}:{_settings.TransmitterPort}...";
+        // Не переподключаемся если идёт запись
+        if (!IsAnyPostRunning)
+        {
+            _experimentService.Configure(
+                _settings.TransmitterHost,
+                _settings.TransmitterPort,
+                _settings.ConnectionTimeoutMs);
+            _experimentService.BeginMonitoring();
+        }
+        StatusMessage = $"Настройки сохранены. Хост: {_settings.TransmitterHost}:{_settings.TransmitterPort}";
     }
 
     /// <summary>Назначает каналы по умолчанию: группа PostA → пост A, PostB → B, PostC → C.</summary>
@@ -124,25 +135,52 @@ public partial class MainViewModel : ObservableObject
                 _ => null
             };
 
-            if (postId == null) continue;
+            if (postId == null) continue; // Common/System — не назначаем по умолчанию
 
-            var ch = new ChannelStatus
-            {
-                ChannelIndex = kvp.Key,
-                ChannelName = def.Name,
-                Unit = def.Unit,
-                Post = postId,
-                Status = HealthStatus.NoData
-            };
-
-            _channelMap[kvp.Key] = ch;
-            _channelPostAssignment[kvp.Key] = postId;
+            var ch = CreateChannelStatus(kvp.Key, def, postId);
+            AddChannelStatus(kvp.Key, postId, ch);
             GetPostChannels(postId).Add(ch);
         }
 
         ApplyPostFilter("A");
         ApplyPostFilter("B");
         ApplyPostFilter("C");
+    }
+
+    private ChannelStatus CreateChannelStatus(int idx, ChannelDefinition def, string postId) =>
+        new ChannelStatus
+        {
+            ChannelIndex = idx,
+            ChannelName = def.Name,
+            Unit = def.Unit,
+            Post = postId,
+            Status = HealthStatus.NoData
+        };
+
+    private void AddChannelStatus(int idx, string postId, ChannelStatus ch)
+    {
+        if (!_channelMap.TryGetValue(idx, out var list))
+            _channelMap[idx] = list = new List<ChannelStatus>();
+        list.Add(ch);
+
+        if (!_channelPostAssignment.TryGetValue(idx, out var posts))
+            _channelPostAssignment[idx] = posts = new HashSet<string>();
+        posts.Add(postId);
+    }
+
+    private void RemoveChannelStatus(int idx, string postId)
+    {
+        if (_channelMap.TryGetValue(idx, out var list))
+        {
+            list.RemoveAll(s => s.Post == postId);
+            if (list.Count == 0) _channelMap.Remove(idx);
+        }
+
+        if (_channelPostAssignment.TryGetValue(idx, out var posts))
+        {
+            posts.Remove(postId);
+            if (posts.Count == 0) _channelPostAssignment.Remove(idx);
+        }
     }
 
     // --- Поиск по постам ---
@@ -204,31 +242,30 @@ public partial class MainViewModel : ObservableObject
 
     private void AssignChannelsToPost(string postId, IList<int> newIndices)
     {
+        // Убираем все текущие каналы этого поста
         var toRemove = _channelPostAssignment
-            .Where(kvp => kvp.Value == postId)
+            .Where(kvp => kvp.Value.Contains(postId))
             .Select(kvp => kvp.Key)
             .ToList();
 
         foreach (var idx in toRemove)
-        {
-            _channelPostAssignment.Remove(idx);
-            _channelMap.Remove(idx);
-        }
+            RemoveChannelStatus(idx, postId);
 
         GetPostChannels(postId).Clear();
 
+        // Добавляем новые каналы
         foreach (var idx in newIndices)
         {
+            if (!ChannelRegistry.All.TryGetValue(idx, out var def)) continue;
             var ch = new ChannelStatus
             {
                 ChannelIndex = idx,
-                ChannelName = ChannelRegistry.GetName(idx),
-                Unit = ChannelRegistry.GetUnit(idx),
+                ChannelName = def.Name,
+                Unit = def.Unit,
                 Post = postId,
                 Status = HealthStatus.NoData
             };
-            _channelMap[idx] = ch;
-            _channelPostAssignment[idx] = postId;
+            AddChannelStatus(idx, postId, ch);
             GetPostChannels(postId).Add(ch);
         }
 
@@ -236,7 +273,25 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = $"Пост {postId}: назначено {newIndices.Count} каналов";
     }
 
-    // --- Команды управления постами ---
+    // --- Команды ---
+
+    [RelayCommand(CanExecute = nameof(CanOpenSettings))]
+    private void OpenSettings()
+    {
+        var window = new SettingsWindow(_settings)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        window.ShowDialog();
+    }
+
+    private bool CanOpenSettings() => !IsAnyPostRunning;
+
+    private void NotifyRunningChanged()
+    {
+        OnPropertyChanged(nameof(IsAnyPostRunning));
+        OpenSettingsCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand]
     private void OpenChannelsForPost(string postId)
@@ -276,7 +331,7 @@ public partial class MainViewModel : ObservableObject
 
         var experiment = viewModel.BuildExperiment();
         var channelIndices = _channelPostAssignment
-            .Where(kvp => kvp.Value == postId)
+            .Where(kvp => kvp.Value.Contains(postId))
             .Select(kvp => kvp.Key)
             .ToList();
 
@@ -292,6 +347,7 @@ public partial class MainViewModel : ObservableObject
         monitor.State = ExperimentState.Running;
         monitor.AnomalyCount = 0;
 
+        NotifyRunningChanged();
         StatusMessage = $"Пост {postId}: запись '{experiment.Name}' активна ({channelIndices.Count} каналов)";
     }
 
@@ -304,6 +360,8 @@ public partial class MainViewModel : ObservableObject
         _experimentService.StopPost(postId);
         monitor.State = ExperimentState.Idle;
         monitor.CurrentExperiment = null;
+
+        NotifyRunningChanged();
         StatusMessage = $"Пост {postId}: запись остановлена";
     }
 
@@ -314,35 +372,25 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = $"Пост {postId}: экспорт...";
     }
 
-    // --- Прочие команды ---
-
-    [RelayCommand]
-    private void OpenSettings()
-    {
-        var window = new SettingsWindow(_settings)
-        {
-            Owner = Application.Current.MainWindow
-        };
-        window.ShowDialog();
-    }
-
     // --- Обработчики событий от сервиса ---
 
     private void OnChannelValueReceived(int index, double value)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            if (!_channelMap.TryGetValue(index, out var ch))
-                return;
+            if (!_channelMap.TryGetValue(index, out var statuses)) return;
 
-            ch.CurrentValue = double.IsNaN(value) ? (double?)null : value;
-            ch.LastUpdateTime = DateTime.Now;
+            foreach (var ch in statuses)
+            {
+                ch.CurrentValue = double.IsNaN(value) ? (double?)null : value;
+                ch.LastUpdateTime = DateTime.Now;
 
-            var monitor = GetPostMonitor(ch.Post);
-            if (double.IsNaN(value))
-                ch.Status = HealthStatus.NoData;
-            else if (monitor.State == ExperimentState.Running)
-                ch.Status = HealthStatus.OK;
+                var monitor = GetPostMonitor(ch.Post);
+                if (double.IsNaN(value))
+                    ch.Status = HealthStatus.NoData;
+                else if (monitor.IsRunning)
+                    ch.Status = HealthStatus.OK;
+            }
         });
     }
 
@@ -353,20 +401,31 @@ public partial class MainViewModel : ObservableObject
             var monitor = GetPostMonitor(postId);
             monitor.AnomalyCount++;
 
-            if (_channelMap.TryGetValue(evt.ChannelIndex, out var ch))
-                ch.Status = evt.Severity == "Critical" ? HealthStatus.Alarm : HealthStatus.Warning;
+            // Обновляем статус конкретного канала для конкретного поста
+            if (_channelMap.TryGetValue(evt.ChannelIndex, out var statuses))
+            {
+                var ch = statuses.FirstOrDefault(s => s.Post == postId) ?? statuses.FirstOrDefault();
+                if (ch != null)
+                    ch.Status = evt.Severity == "Critical" ? HealthStatus.Alarm : HealthStatus.Warning;
+            }
 
-            LogEntries.Insert(0, new LogEntry
+            var entry = new LogEntry
             {
                 Timestamp = evt.Timestamp,
                 Level = evt.Severity == "Critical" ? "Error" : "Warning",
                 Source = evt.ChannelName,
                 Post = postId,
                 Message = evt.Message
-            });
+            };
 
+            LogEntries.Insert(0, entry);
             while (LogEntries.Count > 1000)
                 LogEntries.RemoveAt(LogEntries.Count - 1);
+
+            // Добавляем в RecentAlerts
+            RecentAlerts.Insert(0, entry);
+            while (RecentAlerts.Count > 8)
+                RecentAlerts.RemoveAt(RecentAlerts.Count - 1);
         });
     }
 
@@ -374,10 +433,13 @@ public partial class MainViewModel : ObservableObject
     {
         var threshold = TimeSpan.FromSeconds(5);
         var now = DateTime.Now;
-        foreach (var ch in _channelMap.Values)
+        foreach (var statuses in _channelMap.Values)
         {
-            if (ch.Status == HealthStatus.OK && (now - ch.LastUpdateTime) > threshold)
-                ch.Status = HealthStatus.NoData;
+            foreach (var ch in statuses)
+            {
+                if (ch.Status == HealthStatus.OK && (now - ch.LastUpdateTime) > threshold)
+                    ch.Status = HealthStatus.NoData;
+            }
         }
     }
 
@@ -386,8 +448,7 @@ public partial class MainViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(() =>
         {
             SystemHealth = health;
-            bool anyRunning = PostA.IsRunning || PostB.IsRunning || PostC.IsRunning;
-            if (!anyRunning)
+            if (!IsAnyPostRunning)
             {
                 StatusMessage = health.OverallStatus switch
                 {
@@ -431,17 +492,10 @@ public interface IExperimentService
 {
     event Action<SystemHealth> HealthUpdated;
     event Action<LogEntry> LogReceived;
-
-    /// <summary>Канал index получил новое значение value (double.NaN = нет данных).</summary>
     event Action<int, double>? ChannelValueReceived;
-
-    /// <summary>Обнаружена аномалия на канале поста postId.</summary>
     event Action<string, AnomalyEvent>? PostAnomalyDetected;
 
-    /// <summary>Задать параметры подключения.</summary>
     void Configure(string host, int port, int timeoutMs);
-
-    /// <summary>Подключиться к передатчику и начать приём данных (без создания эксперимента).</summary>
     void BeginMonitoring();
 
     void StartPost(string postId, Experiment experiment, IReadOnlyList<int> channelIndices);

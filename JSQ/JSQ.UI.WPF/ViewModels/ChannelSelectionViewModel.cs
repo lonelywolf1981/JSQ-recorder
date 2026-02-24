@@ -90,18 +90,29 @@ public partial class ChannelSelectionViewModel : ObservableObject
 
     /// <summary>
     /// Инициализировать диалог для конкретного поста.
-    /// assignments: channelIndex → "A"/"B"/"C"
+    /// assignments: channelIndex → HashSet постов ("A"/"B"/"C"), владеющих каналом.
+    /// Common-каналы никогда не блокируются.
     /// </summary>
-    public void InitForPost(string postId, IReadOnlyDictionary<int, string> assignments)
+    public void InitForPost(string postId, IReadOnlyDictionary<int, HashSet<string>> assignments)
     {
         CurrentPostId = postId;
         OnPropertyChanged(nameof(WindowTitle));
 
         foreach (var ch in AllChannels)
         {
-            if (assignments.TryGetValue(ch.Index, out var assignedTo))
+            bool isShared = ch.Group == ChannelGroup.Common || ch.Group == ChannelGroup.System;
+
+            if (isShared)
             {
-                if (assignedTo == postId)
+                // Common/System каналы — всегда доступны, выбраны если этот пост уже имеет их
+                ch.IsSelected = assignments.TryGetValue(ch.Index, out var owners) && owners.Contains(postId);
+                ch.IsTakenByOtherPost = false;
+                ch.TakenByPost = string.Empty;
+                ch.CanSelect = true;
+            }
+            else if (assignments.TryGetValue(ch.Index, out var assignedTo))
+            {
+                if (assignedTo.Contains(postId))
                 {
                     ch.IsSelected = true;
                     ch.IsTakenByOtherPost = false;
@@ -112,7 +123,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
                 {
                     ch.IsSelected = false;
                     ch.IsTakenByOtherPost = true;
-                    ch.TakenByPost = assignedTo;
+                    ch.TakenByPost = string.Join(",", assignedTo);
                     ch.CanSelect = false;
                 }
             }

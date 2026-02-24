@@ -45,6 +45,7 @@ public partial class SettingsViewModel : ObservableObject
     public bool Saved { get; private set; }
 
     public event Action? SaveCompleted;
+    public event Action? CancelRequested;
 
     public SettingsViewModel()
     {
@@ -159,10 +160,9 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void Cancel()
     {
-        // Откат к последним сохранённым значениям
         LoadFromFile();
         Saved = false;
-        SaveCompleted?.Invoke();
+        CancelRequested?.Invoke();
     }
 
     // DTO для сериализации

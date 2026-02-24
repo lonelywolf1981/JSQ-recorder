@@ -52,7 +52,8 @@
         <!-- Панель инструментов -->
         <ToolBarTray Grid.Row="1">
             <ToolBar>
-                <Button Content="⚙ Настройки" Command="{Binding OpenSettingsCommand}" Padding="10,5"/>
+                <Button Content="⚙ Настройки" Command="{Binding OpenSettingsCommand}" Padding="10,5"
+                        ToolTip="Недоступно во время записи"/>
             </ToolBar>
         </ToolBarTray>
 
@@ -516,9 +517,140 @@
                     </StackPanel>
                 </GroupBox>
 
-                <!-- Статус -->
-                <GroupBox Grid.Row="2" Header="Статус">
-                    <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="5"/>
+                <!-- Детальный статус -->
+                <GroupBox Grid.Row="2" Header="Активные записи и события">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Активные посты с длительностью -->
+                        <StackPanel Grid.Row="0" Margin="5,5,5,0">
+                            <!-- Пост A -->
+                            <Border Visibility="{Binding PostA.IsRunning, Converter={StaticResource BoolToVis}}"
+                                    Background="#E8F5E9" BorderBrush="#4CAF50" BorderThickness="1"
+                                    CornerRadius="3" Padding="6,4" Margin="0,0,0,3">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock FontWeight="Bold" FontSize="11">
+                                            <Run Text="● Пост A:"/>
+                                            <Run Text="{Binding PostA.CurrentExperiment.Name, Mode=OneWay}"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="Gray">
+                                            <Run Text="Длит.:"/>
+                                            <Run Text="{Binding PostA.DurationDisplay, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                               Text="{Binding PostA.AnomalyBadge, Mode=OneWay}"
+                                               Foreground="#E53935" FontWeight="Bold" FontSize="12"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Пост B -->
+                            <Border Visibility="{Binding PostB.IsRunning, Converter={StaticResource BoolToVis}}"
+                                    Background="#E8F5E9" BorderBrush="#4CAF50" BorderThickness="1"
+                                    CornerRadius="3" Padding="6,4" Margin="0,0,0,3">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock FontWeight="Bold" FontSize="11">
+                                            <Run Text="● Пост B:"/>
+                                            <Run Text="{Binding PostB.CurrentExperiment.Name, Mode=OneWay}"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="Gray">
+                                            <Run Text="Длит.:"/>
+                                            <Run Text="{Binding PostB.DurationDisplay, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                               Text="{Binding PostB.AnomalyBadge, Mode=OneWay}"
+                                               Foreground="#E53935" FontWeight="Bold" FontSize="12"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Пост C -->
+                            <Border Visibility="{Binding PostC.IsRunning, Converter={StaticResource BoolToVis}}"
+                                    Background="#E8F5E9" BorderBrush="#4CAF50" BorderThickness="1"
+                                    CornerRadius="3" Padding="6,4" Margin="0,0,0,3">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock FontWeight="Bold" FontSize="11">
+                                            <Run Text="● Пост C:"/>
+                                            <Run Text="{Binding PostC.CurrentExperiment.Name, Mode=OneWay}"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="Gray">
+                                            <Run Text="Длит.:"/>
+                                            <Run Text="{Binding PostC.DurationDisplay, Mode=OneWay}"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                               Text="{Binding PostC.AnomalyBadge, Mode=OneWay}"
+                                               Foreground="#E53935" FontWeight="Bold" FontSize="12"/>
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Text="Нет активных записей" FontStyle="Italic" Foreground="Gray"
+                                       FontSize="11" Margin="0,2"
+                                       Visibility="{Binding IsAnyPostRunning, Converter={StaticResource BoolToVis}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAnyPostRunning}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!-- Последние аномалии -->
+                        <GroupBox Grid.Row="1" Header="Последние события" Margin="0,4,0,0">
+                            <ItemsControl ItemsSource="{Binding RecentAlerts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,1" Padding="4,2" CornerRadius="2">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#FFF9C4"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Level}" Value="Error">
+                                                            <Setter Property="Background" Value="#FFCDD2"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel>
+                                                <TextBlock FontSize="10" Foreground="Gray">
+                                                    <Run Text="{Binding Timestamp, StringFormat=HH:mm:ss, Mode=OneWay}"/>
+                                                    <Run Text=" Пост"/>
+                                                    <Run Text="{Binding Post, Mode=OneWay}"/>
+                                                </TextBlock>
+                                                <TextBlock FontSize="11" FontWeight="Bold"
+                                                           Text="{Binding Source}" TextWrapping="Wrap"/>
+                                                <TextBlock FontSize="11"
+                                                           Text="{Binding Message}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </GroupBox>
+                    </Grid>
                 </GroupBox>
             </Grid>
         </Grid>
