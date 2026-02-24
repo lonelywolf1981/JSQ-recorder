@@ -1,5 +1,7 @@
 using System.Data;
+using System.Linq;
 using Dapper;
+using JSQ.Core.Models;
 using Microsoft.Data.Sqlite;
 
 namespace JSQ.Storage;
@@ -115,8 +117,165 @@ public class SqliteDatabaseService : IDatabaseService
             // Создаем минимальную схему если файл не найден
             await CreateMinimalSchemaAsync(conn);
         }
+
+        await EnsurePostIdSchemaAsync(conn);
         
         _initialized = true;
+    }
+
+    private async Task EnsurePostIdSchemaAsync(IDbConnection conn)
+    {
+        var columns = (await conn.QueryAsync<TableInfoRow>("PRAGMA table_info(experiments);")).ToList();
+        if (!columns.Any(c => string.Equals(c.Name, "post_id", StringComparison.OrdinalIgnoreCase)))
+        {
+            await conn.ExecuteAsync("ALTER TABLE experiments ADD COLUMN post_id TEXT;");
+        }
+
+        await conn.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_experiments_post_start ON experiments(post_id, start_time DESC);");
+        await BackfillExperimentPostIdsAsync(conn);
+    }
+
+    private async Task BackfillExperimentPostIdsAsync(IDbConnection conn)
+    {
+        var experimentIds = await conn.QueryAsync<string>(@"
+            SELECT id
+            FROM experiments
+            WHERE post_id IS NULL OR TRIM(post_id) = '';
+        ");
+
+        foreach (var experimentId in experimentIds)
+        {
+            var postId = await InferPostIdAsync(conn, experimentId);
+            if (string.IsNullOrWhiteSpace(postId))
+                continue;
+
+            await conn.ExecuteAsync(@"
+                UPDATE experiments
+                SET post_id = @PostId,
+                    updated_at = datetime('now')
+                WHERE id = @Id;
+            ", new { Id = experimentId, PostId = postId });
+        }
+    }
+
+    private async Task<string?> InferPostIdAsync(IDbConnection conn, string experimentId)
+    {
+        var channelIndices = (await conn.QueryAsync<int>(@"
+            SELECT DISTINCT channel_index
+            FROM raw_samples
+            WHERE experiment_id = @Id
+            LIMIT 1000;
+        ", new { Id = experimentId })).ToList();
+
+        var postBySamples = ResolvePostFromChannelIndices(channelIndices);
+        if (!string.IsNullOrWhiteSpace(postBySamples))
+            return postBySamples;
+
+        var groups = (await conn.QueryAsync<string>(@"
+            SELECT channel_group
+            FROM channel_config
+            WHERE experiment_id = @Id
+              AND enabled = 1;
+        ", new { Id = experimentId })).ToList();
+
+        var postByConfig = ResolvePostFromGroups(groups);
+        if (!string.IsNullOrWhiteSpace(postByConfig))
+            return postByConfig;
+
+        var expName = await conn.QueryFirstOrDefaultAsync<string>(
+            "SELECT name FROM experiments WHERE id = @Id;", new { Id = experimentId });
+
+        return ResolvePostFromName(expName);
+    }
+
+    private static string? ResolvePostFromChannelIndices(IEnumerable<int> channelIndices)
+    {
+        var counters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = 0,
+            ["B"] = 0,
+            ["C"] = 0
+        };
+
+        foreach (var index in channelIndices)
+        {
+            var def = ChannelRegistry.GetByIndex(index);
+            if (def == null)
+                continue;
+
+            switch (def.Group)
+            {
+                case ChannelGroup.PostA:
+                    counters["A"]++;
+                    break;
+                case ChannelGroup.PostB:
+                    counters["B"]++;
+                    break;
+                case ChannelGroup.PostC:
+                    counters["C"]++;
+                    break;
+            }
+        }
+
+        return ResolveDominantPost(counters);
+    }
+
+    private static string? ResolvePostFromGroups(IEnumerable<string> groups)
+    {
+        var counters = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = 0,
+            ["B"] = 0,
+            ["C"] = 0
+        };
+
+        foreach (var group in groups)
+        {
+            if (string.Equals(group, "PostA", StringComparison.OrdinalIgnoreCase)) counters["A"]++;
+            else if (string.Equals(group, "PostB", StringComparison.OrdinalIgnoreCase)) counters["B"]++;
+            else if (string.Equals(group, "PostC", StringComparison.OrdinalIgnoreCase)) counters["C"]++;
+        }
+
+        return ResolveDominantPost(counters);
+    }
+
+    private static string? ResolveDominantPost(Dictionary<string, int> counters)
+    {
+        var ordered = counters.OrderByDescending(kvp => kvp.Value).ToList();
+        if (ordered.Count == 0 || ordered[0].Value == 0)
+            return null;
+
+        if (ordered.Count > 1 && ordered[0].Value == ordered[1].Value)
+            return null;
+
+        return ordered[0].Key;
+    }
+
+    private static string? ResolvePostFromName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return null;
+
+        var safeName = name!;
+
+        if (safeName.IndexOf("пост a", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            safeName.IndexOf("post a", StringComparison.OrdinalIgnoreCase) >= 0)
+            return "A";
+
+        if (safeName.IndexOf("пост b", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            safeName.IndexOf("post b", StringComparison.OrdinalIgnoreCase) >= 0)
+            return "B";
+
+        if (safeName.IndexOf("пост c", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            safeName.IndexOf("post c", StringComparison.OrdinalIgnoreCase) >= 0)
+            return "C";
+
+        return null;
+    }
+
+    private class TableInfoRow
+    {
+        public string Name { get; set; } = string.Empty;
     }
     
     private async Task CreateMinimalSchemaAsync(IDbConnection conn)
@@ -124,6 +283,7 @@ public class SqliteDatabaseService : IDatabaseService
         var sql = @"
             CREATE TABLE IF NOT EXISTS experiments (
                 id TEXT PRIMARY KEY,
+                post_id TEXT,
                 name TEXT NOT NULL,
                 part_number TEXT,
                 operator TEXT,

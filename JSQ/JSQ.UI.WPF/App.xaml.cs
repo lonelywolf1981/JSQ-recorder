@@ -117,6 +117,13 @@ public class ExperimentServiceStub : IExperimentService
     public Task<List<ExperimentChannelInfo>> GetExperimentChannelsAsync(string experimentId)
         => Task.FromResult(new List<ExperimentChannelInfo>());
 
+    public Task<List<PostExperimentRecord>> GetPostExperimentsAsync(
+        string postId,
+        DateTime? startFrom = null,
+        DateTime? startTo = null,
+        string? searchText = null)
+        => Task.FromResult(new List<PostExperimentRecord>());
+
     public Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId)
         => Task.FromResult<(DateTime? start, DateTime? end)>((null, null));
 

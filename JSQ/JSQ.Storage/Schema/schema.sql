@@ -4,6 +4,7 @@
 -- Таблица экспериментов
 CREATE TABLE IF NOT EXISTS experiments (
     id TEXT PRIMARY KEY,
+    post_id TEXT, -- A/B/C
     name TEXT NOT NULL,
     part_number TEXT,
     operator TEXT,

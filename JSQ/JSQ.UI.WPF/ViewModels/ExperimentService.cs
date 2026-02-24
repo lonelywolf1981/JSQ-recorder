@@ -90,6 +90,12 @@ public class ExperimentService : IExperimentService, IDisposable
         _captureService.ConnectionTimeoutMs = timeoutMs;
     }
 
+    public (string host, int port, ConnectionStatus status, DateTime lastPacketTime) GetConnectionSnapshot()
+    {
+        var stats = _captureService.Statistics;
+        return (_host, _port, _captureService.Status, stats.LastPacketTime);
+    }
+
     public void BeginMonitoring()
     {
         var host = _host;
@@ -150,6 +156,10 @@ public class ExperimentService : IExperimentService, IDisposable
                     Message = $"Подключение к {host}:{port}..."
                 });
 
+                // Стартуем новый цикл чтения с чистым декодером,
+                // чтобы остатки неполного пакета не мешали после реконнекта.
+                _decoder.Reset();
+
                 await _captureService.ConnectAsync(host, port);
 
                 LogReceived?.Invoke(new LogEntry
@@ -189,6 +199,7 @@ public class ExperimentService : IExperimentService, IDisposable
 
             experiment.StartTime = DateTime.Now;
             experiment.State = ExperimentState.Running;
+            experiment.PostId = postId;
 
             var anomalyDetector = new AnomalyDetector(experiment.Id);
             var aggregationService = new AggregationService(experiment.AggregationIntervalSec);
@@ -616,6 +627,37 @@ public class ExperimentService : IExperimentService, IDisposable
             }).ToList();
         }
         catch { return new List<ChannelEventRecord>(); }
+    }
+
+    public async Task<List<PostExperimentRecord>> GetPostExperimentsAsync(
+        string postId,
+        DateTime? startFrom = null,
+        DateTime? startTo = null,
+        string? searchText = null)
+    {
+        try
+        {
+            var rows = await _experimentRepo.GetByPostAsync(postId, startFrom, startTo, searchText);
+            return rows
+                .OrderByDescending(r => r.StartTime)
+                .Select(r => new PostExperimentRecord
+                {
+                    Id = r.Id,
+                    PostId = r.PostId,
+                    Name = r.Name,
+                    Operator = r.Operator,
+                    PartNumber = r.PartNumber,
+                    Refrigerant = r.Refrigerant,
+                    State = r.State,
+                    StartTime = r.StartTime,
+                    EndTime = r.EndTime
+                })
+                .ToList();
+        }
+        catch
+        {
+            return new List<PostExperimentRecord>();
+        }
     }
 
     public async Task<List<ExperimentChannelInfo>> GetExperimentChannelsAsync(string experimentId)

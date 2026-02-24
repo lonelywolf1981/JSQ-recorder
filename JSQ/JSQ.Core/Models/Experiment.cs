@@ -22,6 +22,7 @@ public enum ExperimentState
 public class Experiment
 {
     public string Id { get; set; } = string.Empty;
+    public string PostId { get; set; } = string.Empty; // A / B / C
     public string Name { get; set; } = string.Empty;
     public string PartNumber { get; set; } = string.Empty;
     public string Operator { get; set; } = string.Empty;

@@ -137,10 +137,6 @@ public class TcpCaptureService : ITcpCaptureService
             
             // Запускаем прием данных
             _receiveTask = ReceiveLoopAsync(_cts.Token);
-            
-            // Логируем событие
-            DataReceived?.Invoke(this, System.Text.Encoding.UTF8.GetBytes(
-                $"[INFO] Подключено к {host}:{port}"));
         }
         catch (Exception ex)
         {
@@ -177,9 +173,6 @@ public class TcpCaptureService : ITcpCaptureService
         _stream = null;
         _client = null;
         _cts = null;
-        
-        DataReceived?.Invoke(this, System.Text.Encoding.UTF8.GetBytes(
-            $"[INFO] Отключено"));
     }
     
     public async Task SendAsync(byte[] data, CancellationToken ct = default)

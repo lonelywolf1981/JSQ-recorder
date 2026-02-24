@@ -6,6 +6,7 @@ namespace JSQ.Storage.Entities;
 public class ExperimentEntity
 {
     public string Id { get; set; } = string.Empty;
+    public string PostId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string PartNumber { get; set; } = string.Empty;
     public string Operator { get; set; } = string.Empty;

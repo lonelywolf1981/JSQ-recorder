@@ -29,6 +29,16 @@ public interface IExperimentRepository
     /// Получить активный эксперимент
     /// </summary>
     Task<Experiment?> GetActiveAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Получить список экспериментов по посту (A/B/C) с фильтрами.
+    /// </summary>
+    Task<List<Experiment>> GetByPostAsync(
+        string postId,
+        DateTime? startFrom = null,
+        DateTime? startTo = null,
+        string? searchText = null,
+        CancellationToken ct = default);
     
     /// <summary>
     /// Завершить эксперимент
@@ -114,12 +124,12 @@ public class ExperimentRepository : IExperimentRepository
         
         const string sql = @"
             INSERT INTO experiments (
-                id, name, part_number, operator, refrigerant, state,
+                id, post_id, name, part_number, operator, refrigerant, state,
                 start_time, post_a_enabled, post_b_enabled, post_c_enabled,
                 batch_size, aggregation_interval_sec, checkpoint_interval_sec,
                 created_at, updated_at
             ) VALUES (
-                @Id, @Name, @PartNumber, @Operator, @Refrigerant, @State,
+                @Id, @PostId, @Name, @PartNumber, @Operator, @Refrigerant, @State,
                 @StartTime, @PostAEnabled, @PostBEnabled, @PostCEnabled,
                 @BatchSize, @AggregationIntervalSec, @CheckpointIntervalSec,
                 datetime('now'), datetime('now')
@@ -129,6 +139,7 @@ public class ExperimentRepository : IExperimentRepository
         await conn.ExecuteAsync(sql, new
         {
             experiment.Id,
+            PostId = string.IsNullOrWhiteSpace(experiment.PostId) ? null : experiment.PostId,
             experiment.Name,
             PartNumber = experiment.PartNumber,
             Operator = experiment.Operator,
@@ -220,6 +231,48 @@ public class ExperimentRepository : IExperimentRepository
         var entity = await conn.QueryFirstOrDefaultAsync<ExperimentEntity>(sql);
         
         return entity?.ToExperiment();
+    }
+
+    public async Task<List<Experiment>> GetByPostAsync(
+        string postId,
+        DateTime? startFrom = null,
+        DateTime? startTo = null,
+        string? searchText = null,
+        CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+
+        var trimmedSearch = searchText?.Trim();
+        var like = string.IsNullOrWhiteSpace(trimmedSearch)
+            ? null
+            : $"%{trimmedSearch}%";
+
+        const string sql = @"
+            SELECT *
+            FROM experiments
+            WHERE post_id = @PostId
+              AND state <> 'Idle'
+              AND (@StartFrom IS NULL OR start_time >= @StartFrom)
+              AND (@StartTo IS NULL OR start_time <= @StartTo)
+              AND (
+                    @Like IS NULL OR
+                    name LIKE @Like OR
+                    part_number LIKE @Like OR
+                    operator LIKE @Like OR
+                    refrigerant LIKE @Like
+                  )
+            ORDER BY start_time DESC, created_at DESC;
+        ";
+
+        var rows = await conn.QueryAsync<ExperimentEntity>(sql, new
+        {
+            PostId = postId,
+            StartFrom = startFrom?.ToString("O"),
+            StartTo = startTo?.ToString("O"),
+            Like = like
+        });
+
+        return rows.Select(r => r.ToExperiment()).ToList();
     }
     
     public async Task FinalizeAsync(string experimentId, CancellationToken ct = default)
@@ -495,6 +548,7 @@ public static class ExperimentEntityExtensions
         return new Experiment
         {
             Id = entity.Id,
+            PostId = entity.PostId,
             Name = entity.Name,
             PartNumber = entity.PartNumber,
             Operator = entity.Operator,

@@ -44,6 +44,12 @@ public partial class SettingsViewModel : ObservableObject
     private bool _testResultVisible;
 
     /// <summary>
+    /// Неинвазивная проверка соединения через уже работающий мониторинг (если доступна).
+    /// Возвращает: handled/success/message.
+    /// </summary>
+    public Func<string, int, int, Task<(bool handled, bool success, string message)>>? NonIntrusiveConnectionProbe { get; set; }
+
+    /// <summary>
     /// Абсолютный путь к БД.
     /// Относительные пути разрешаются от BaseDirectory приложения.
     /// </summary>
@@ -122,24 +128,40 @@ public partial class SettingsViewModel : ObservableObject
         TestResultVisible = false;
         TestResultMessage = string.Empty;
 
+        var host = (TransmitterHost ?? string.Empty).Trim();
+        var port = TransmitterPort;
+        var timeoutMs = ConnectionTimeoutMs;
+
         try
         {
-            using var client = new TcpClient();
-            using var cts = new CancellationTokenSource(ConnectionTimeoutMs);
+            var probe = NonIntrusiveConnectionProbe;
+            if (probe != null)
+            {
+                var (handled, success, message) = await probe(host, port, timeoutMs);
+                if (handled)
+                {
+                    TestResultSuccess = success;
+                    TestResultMessage = message;
+                    return;
+                }
+            }
 
-            var connectTask = client.ConnectAsync(TransmitterHost, TransmitterPort);
-            var timeoutTask = Task.Delay(ConnectionTimeoutMs, cts.Token);
+            using var client = new TcpClient();
+            using var cts = new CancellationTokenSource(timeoutMs);
+
+            var connectTask = client.ConnectAsync(host, port);
+            var timeoutTask = Task.Delay(timeoutMs, cts.Token);
 
             if (await Task.WhenAny(connectTask, timeoutTask) == timeoutTask)
             {
                 TestResultSuccess = false;
-                TestResultMessage = $"Таймаут: нет ответа от {TransmitterHost}:{TransmitterPort} за {ConnectionTimeoutMs} мс";
+                TestResultMessage = $"Таймаут: нет ответа от {host}:{port} за {timeoutMs} мс";
             }
             else
             {
                 await connectTask;
                 TestResultSuccess = true;
-                TestResultMessage = $"Подключение успешно: {TransmitterHost}:{TransmitterPort}";
+                TestResultMessage = $"Подключение успешно: {host}:{port}";
             }
         }
         catch (Exception ex)
@@ -168,6 +190,11 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSaveOrCancel))]
     private void Save()
     {
+        // Санитизация пользовательского ввода перед сохранением/применением
+        TransmitterHost = (TransmitterHost ?? string.Empty).Trim();
+        DatabasePath = (DatabasePath ?? string.Empty).Trim();
+        ExportPath = (ExportPath ?? string.Empty).Trim();
+
         SaveToFile();
         Saved = true;
         SaveCompleted?.Invoke();

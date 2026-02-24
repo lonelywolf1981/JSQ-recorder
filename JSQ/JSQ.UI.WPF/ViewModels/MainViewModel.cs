@@ -122,22 +122,24 @@ public partial class MainViewModel : ObservableObject
         InitializeDefaultChannelAssignment();
 
         _experimentService.Configure(
-            _settings.TransmitterHost,
+            NormalizeHost(_settings.TransmitterHost),
             _settings.TransmitterPort,
             _settings.ConnectionTimeoutMs);
-        _appliedHost = _settings.TransmitterHost;
+        _appliedHost = NormalizeHost(_settings.TransmitterHost);
         _appliedPort = _settings.TransmitterPort;
         _appliedTimeoutMs = _settings.ConnectionTimeoutMs;
         _experimentService.BeginMonitoring();
 
         _settings.SaveCompleted += OnSettingsSaved;
+        _settings.NonIntrusiveConnectionProbe = ProbeCurrentConnectionAsync;
         // CancelRequested — просто закрывает окно, BeginMonitoring не вызываем
     }
 
     private void OnSettingsSaved()
     {
+        var host = NormalizeHost(_settings.TransmitterHost);
         var connectionChanged =
-            !string.Equals(_appliedHost, _settings.TransmitterHost, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(_appliedHost, host, StringComparison.OrdinalIgnoreCase) ||
             _appliedPort != _settings.TransmitterPort ||
             _appliedTimeoutMs != _settings.ConnectionTimeoutMs;
 
@@ -145,15 +147,15 @@ public partial class MainViewModel : ObservableObject
         if (!IsAnyPostRunning && connectionChanged)
         {
             _experimentService.Configure(
-                _settings.TransmitterHost,
+                host,
                 _settings.TransmitterPort,
                 _settings.ConnectionTimeoutMs);
             _experimentService.BeginMonitoring();
 
-            _appliedHost = _settings.TransmitterHost;
+            _appliedHost = host;
             _appliedPort = _settings.TransmitterPort;
             _appliedTimeoutMs = _settings.ConnectionTimeoutMs;
-            StatusMessage = $"Настройки сохранены. Переподключение к {_settings.TransmitterHost}:{_settings.TransmitterPort}";
+            StatusMessage = $"Настройки сохранены. Переподключение к {host}:{_settings.TransmitterPort}";
             return;
         }
 
@@ -163,7 +165,52 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        StatusMessage = "Настройки сохранены";
+        StatusMessage = "Настройки сохранены (без переподключения)";
+    }
+
+    private static string NormalizeHost(string? host)
+        => (host ?? string.Empty).Trim();
+
+    private Task<(bool handled, bool success, string message)> ProbeCurrentConnectionAsync(
+        string host,
+        int port,
+        int timeoutMs)
+    {
+        _ = timeoutMs;
+
+        var normalizedHost = NormalizeHost(host);
+        var snapshot = _experimentService.GetConnectionSnapshot();
+
+        if (!string.Equals(snapshot.host, normalizedHost, StringComparison.OrdinalIgnoreCase) ||
+            snapshot.port != port)
+        {
+            return Task.FromResult((false, false, string.Empty));
+        }
+
+        if (snapshot.status == ConnectionStatus.Connected)
+        {
+            var tail = snapshot.lastPacketTime == default
+                ? string.Empty
+                : $"; последний пакет {(DateTime.Now - snapshot.lastPacketTime).TotalSeconds:F1} с назад";
+
+            return Task.FromResult((
+                true,
+                true,
+                $"Соединение уже активно: {normalizedHost}:{port} (без открытия нового сокета){tail}"));
+        }
+
+        if (snapshot.status == ConnectionStatus.Connecting || snapshot.status == ConnectionStatus.Reconnecting)
+        {
+            return Task.FromResult((
+                true,
+                true,
+                $"Идёт подключение к {normalizedHost}:{port} (без открытия нового сокета)"));
+        }
+
+        return Task.FromResult((
+            true,
+            false,
+            $"Текущее соединение для {normalizedHost}:{port} не активно: {snapshot.status}"));
     }
 
     /// <summary>Назначает каналы по умолчанию: группа PostA → пост A, PostB → B, PostC → C.</summary>
@@ -539,21 +586,11 @@ public partial class MainViewModel : ObservableObject
     private void OpenEventHistory(string postId)
     {
         var monitor = GetPostMonitor(postId);
-        var experimentId = monitor.IsRunning
+        var initialExperimentId = monitor.IsRunning
             ? monitor.CurrentExperiment?.Id
             : monitor.LastExperimentId;
 
-        if (string.IsNullOrEmpty(experimentId))
-        {
-            StatusMessage = $"Пост {postId}: нет данных для отображения истории";
-            return;
-        }
-
-        var safeExperimentId = experimentId!;
-
-        var experimentName = monitor.CurrentExperiment?.Name
-            ?? $"Пост {postId} — последний эксперимент";
-        var window = new Views.EventHistoryWindow(safeExperimentId, experimentName, _experimentService)
+        var window = new Views.EventHistoryWindow(postId, _experimentService, initialExperimentId)
         {
             Owner = Application.Current.MainWindow
         };
@@ -836,6 +873,12 @@ public interface IExperimentService
 
     Task<List<ExperimentChannelInfo>> GetExperimentChannelsAsync(string experimentId);
 
+    Task<List<PostExperimentRecord>> GetPostExperimentsAsync(
+        string postId,
+        DateTime? startFrom = null,
+        DateTime? startTo = null,
+        string? searchText = null);
+
     Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId);
 
     Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId);
@@ -875,4 +918,20 @@ public class ExperimentChannelInfo
     public string DisplayName => string.IsNullOrWhiteSpace(Unit)
         ? $"{ChannelName} (v{ChannelIndex:D3})"
         : $"{ChannelName} [{Unit}] (v{ChannelIndex:D3})";
+}
+
+public class PostExperimentRecord
+{
+    public string Id { get; set; } = string.Empty;
+    public string PostId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Operator { get; set; } = string.Empty;
+    public string PartNumber { get; set; } = string.Empty;
+    public string Refrigerant { get; set; } = string.Empty;
+    public ExperimentState State { get; set; }
+    public DateTime StartTime { get; set; }
+    public DateTime? EndTime { get; set; }
+
+    public string StateDisplay => State.ToString();
+    public string StartDisplay => StartTime == default ? "—" : StartTime.ToString("dd.MM.yyyy HH:mm:ss");
 }
