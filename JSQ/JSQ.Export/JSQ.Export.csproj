@@ -5,6 +5,14 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  
+  <!-- Конфигурация для ветки qwen -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug_Qwen'">
+    <OutputPath>..\..\debug_qwen\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />

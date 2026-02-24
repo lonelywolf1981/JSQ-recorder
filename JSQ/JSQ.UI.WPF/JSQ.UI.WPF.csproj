@@ -7,6 +7,14 @@
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
+  
+  <!-- Конфигурация для ветки qwen -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug_Qwen'">
+    <OutputPath>..\..\debug_qwen\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="OxyPlot.Wpf" Version="2.1.0" />
