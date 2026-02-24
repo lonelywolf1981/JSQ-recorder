@@ -178,7 +178,7 @@
                                      Text="{Binding PostASearch, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <DataGrid Grid.Row="2" ItemsSource="{Binding PostAFiltered}"
+                        <DataGrid x:Name="PostADataGrid" Grid.Row="2" ItemsSource="{Binding PostAFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
                                   RowStyle="{StaticResource ChannelRowStyle}"
@@ -197,7 +197,21 @@
                                 <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
                                 <DataGridTextColumn Header="Min"       Binding="{Binding MinLimit, StringFormat=F3}" Width="75"/>
                                 <DataGridTextColumn Header="Max"       Binding="{Binding MaxLimit, StringFormat=F3}" Width="75"/>
-                                <DataGridCheckBoxColumn Header="10s"   Binding="{Binding HighPrecision}" Width="45"/>
+                                <DataGridTemplateColumn Header="10s HP" Width="68">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border x:Name="HpBadge" CornerRadius="8" Padding="6,1" Background="Transparent" HorizontalAlignment="Center">
+                                                <TextBlock x:Name="HpText" Text="" FontSize="10" FontWeight="SemiBold" Foreground="#F57F17"/>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding HighPrecision}" Value="True">
+                                                    <Setter TargetName="HpBadge" Property="Background" Value="#FFF8E1"/>
+                                                    <Setter TargetName="HpText" Property="Text" Value="10s"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
                                 <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
@@ -282,7 +296,7 @@
                                      Text="{Binding PostBSearch, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <DataGrid Grid.Row="2" ItemsSource="{Binding PostBFiltered}"
+                        <DataGrid x:Name="PostBDataGrid" Grid.Row="2" ItemsSource="{Binding PostBFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
                                   RowStyle="{StaticResource ChannelRowStyle}"
@@ -301,7 +315,21 @@
                                 <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
                                 <DataGridTextColumn Header="Min"       Binding="{Binding MinLimit, StringFormat=F3}" Width="75"/>
                                 <DataGridTextColumn Header="Max"       Binding="{Binding MaxLimit, StringFormat=F3}" Width="75"/>
-                                <DataGridCheckBoxColumn Header="10s"   Binding="{Binding HighPrecision}" Width="45"/>
+                                <DataGridTemplateColumn Header="10s HP" Width="68">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border x:Name="HpBadge" CornerRadius="8" Padding="6,1" Background="Transparent" HorizontalAlignment="Center">
+                                                <TextBlock x:Name="HpText" Text="" FontSize="10" FontWeight="SemiBold" Foreground="#F57F17"/>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding HighPrecision}" Value="True">
+                                                    <Setter TargetName="HpBadge" Property="Background" Value="#FFF8E1"/>
+                                                    <Setter TargetName="HpText" Property="Text" Value="10s"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
                                 <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
@@ -386,7 +414,7 @@
                                      Text="{Binding PostCSearch, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <DataGrid Grid.Row="2" ItemsSource="{Binding PostCFiltered}"
+                        <DataGrid x:Name="PostCDataGrid" Grid.Row="2" ItemsSource="{Binding PostCFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
                                   RowStyle="{StaticResource ChannelRowStyle}"
@@ -405,7 +433,21 @@
                                 <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
                                 <DataGridTextColumn Header="Min"       Binding="{Binding MinLimit, StringFormat=F3}" Width="75"/>
                                 <DataGridTextColumn Header="Max"       Binding="{Binding MaxLimit, StringFormat=F3}" Width="75"/>
-                                <DataGridCheckBoxColumn Header="10s"   Binding="{Binding HighPrecision}" Width="45"/>
+                                <DataGridTemplateColumn Header="10s HP" Width="68">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border x:Name="HpBadge" CornerRadius="8" Padding="6,1" Background="Transparent" HorizontalAlignment="Center">
+                                                <TextBlock x:Name="HpText" Text="" FontSize="10" FontWeight="SemiBold" Foreground="#F57F17"/>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding HighPrecision}" Value="True">
+                                                    <Setter TargetName="HpBadge" Property="Background" Value="#FFF8E1"/>
+                                                    <Setter TargetName="HpText" Property="Text" Value="10s"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
                                 <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
