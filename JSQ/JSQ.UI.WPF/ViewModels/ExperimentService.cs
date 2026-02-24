@@ -29,6 +29,7 @@ public class ExperimentService : IExperimentService, IDisposable
     private readonly Dictionary<int, HashSet<string>> _channelPostMap = new();
     private readonly object _stateLock = new();
     private readonly SemaphoreSlim _monitoringLock = new(1, 1);
+    private int _suppressAutoReconnect;
 
     // Параметры подключения
     private string _host = "192.168.0.214";
@@ -127,7 +128,19 @@ public class ExperimentService : IExperimentService, IDisposable
 
                 if (_captureService.Status == ConnectionStatus.Connected ||
                     _captureService.Status == ConnectionStatus.Connecting)
-                    await _captureService.DisconnectAsync();
+                {
+                    // Намеренный disconnect во время переподключения не должен
+                    // запускать авто-reconnect из OnStatusChanged.
+                    Interlocked.Exchange(ref _suppressAutoReconnect, 1);
+                    try
+                    {
+                        await _captureService.DisconnectAsync();
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref _suppressAutoReconnect, 0);
+                    }
+                }
 
                 LogReceived?.Invoke(new LogEntry
                 {
@@ -467,7 +480,8 @@ public class ExperimentService : IExperimentService, IDisposable
 
         // Авто-переподключение: если соединение потеряно — пробуем снова через 5 секунд.
         // _monitoringLock в BeginMonitoring защищает от параллельных попыток.
-        if (status == ConnectionStatus.Disconnected || status == ConnectionStatus.Error)
+        if ((status == ConnectionStatus.Disconnected || status == ConnectionStatus.Error) &&
+            Interlocked.CompareExchange(ref _suppressAutoReconnect, 0, 0) == 0)
         {
             var cts = _healthUpdateCts;
             _ = Task.Run(async () =>
