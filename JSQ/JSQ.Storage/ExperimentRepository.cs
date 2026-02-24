@@ -66,6 +66,16 @@ public interface IExperimentRepository
     /// Получить все события аномалий для эксперимента
     /// </summary>
     Task<List<AnomalyEventRecord>> GetAnomalyEventsAsync(string experimentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Получить список индексов каналов, для которых есть сырые данные эксперимента.
+    /// </summary>
+    Task<List<int>> GetExperimentChannelIndicesAsync(string experimentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Получить диапазон времени сырых данных эксперимента.
+    /// </summary>
+    Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -434,6 +444,53 @@ public class ExperimentRepository : IExperimentRepository
         var rows = await conn.QueryAsync<AnomalyEventRecord>(sql, new { ExperimentId = experimentId });
         return rows.ToList();
     }
+
+    public async Task<List<int>> GetExperimentChannelIndicesAsync(string experimentId, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+        const string sql = @"
+            SELECT DISTINCT channel_index
+            FROM raw_samples
+            WHERE experiment_id = @ExperimentId
+            ORDER BY channel_index ASC;
+        ";
+
+        var rows = await conn.QueryAsync<int>(sql, new { ExperimentId = experimentId });
+        return rows.ToList();
+    }
+
+    public async Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+        const string sql = @"
+            SELECT MIN(timestamp) AS StartTimestamp, MAX(timestamp) AS EndTimestamp
+            FROM raw_samples
+            WHERE experiment_id = @ExperimentId;
+        ";
+
+        var row = await conn.QueryFirstOrDefaultAsync<SampleRangeRow>(sql, new { ExperimentId = experimentId });
+        if (row == null)
+        {
+            return (null, null);
+        }
+
+        DateTime? start = null;
+        DateTime? end = null;
+
+        if (!string.IsNullOrWhiteSpace(row.StartTimestamp) &&
+            DateTime.TryParse(row.StartTimestamp, null, System.Globalization.DateTimeStyles.RoundtripKind, out var s))
+        {
+            start = s;
+        }
+
+        if (!string.IsNullOrWhiteSpace(row.EndTimestamp) &&
+            DateTime.TryParse(row.EndTimestamp, null, System.Globalization.DateTimeStyles.RoundtripKind, out var e))
+        {
+            end = e;
+        }
+
+        return (start, end);
+    }
 }
 
 /// <summary>
@@ -447,6 +504,12 @@ public class AnomalyEventRecord
     public string AnomalyType { get; set; } = string.Empty;
     public double? Value { get; set; }
     public double? Threshold { get; set; }
+}
+
+internal class SampleRangeRow
+{
+    public string? StartTimestamp { get; set; }
+    public string? EndTimestamp { get; set; }
 }
 
 /// <summary>

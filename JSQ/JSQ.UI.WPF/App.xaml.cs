@@ -5,6 +5,7 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using JSQ.UI.WPF.ViewModels;
 using JSQ.Core.Models;
+using JSQ.Export;
 using JSQ.Storage;
 
 namespace JSQ.UI.WPF;
@@ -68,6 +69,8 @@ public partial class App : Application
             new BatchWriter(sp.GetRequiredService<IDatabaseService>()));
         services.AddSingleton<IExperimentRepository>(sp =>
             new ExperimentRepository(sp.GetRequiredService<IDatabaseService>()));
+        services.AddSingleton<ILegacyExportService>(sp =>
+            new LegacyExportService(sp.GetRequiredService<IDatabaseService>()));
 
         // Services - регистрируем и интерфейс, и конкретный класс
         services.AddSingleton<ExperimentService>(sp =>
@@ -106,6 +109,16 @@ public class ExperimentServiceStub : IExperimentService
     public Task<List<(DateTime time, double value)>> LoadChannelHistoryAsync(
         int channelIndex, DateTime startTime, DateTime endTime)
         => Task.FromResult(new List<(DateTime, double)>());
+
+    public Task<List<(DateTime time, double value)>> LoadExperimentChannelHistoryAsync(
+        string experimentId, int channelIndex, DateTime startTime, DateTime endTime)
+        => Task.FromResult(new List<(DateTime, double)>());
+
+    public Task<List<ExperimentChannelInfo>> GetExperimentChannelsAsync(string experimentId)
+        => Task.FromResult(new List<ExperimentChannelInfo>());
+
+    public Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId)
+        => Task.FromResult<(DateTime? start, DateTime? end)>((null, null));
 
     public Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId)
         => Task.FromResult(new List<ChannelEventRecord>());
