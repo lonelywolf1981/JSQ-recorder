@@ -190,7 +190,8 @@ public partial class ChannelChartViewModel : ObservableObject
         }
 
         var span = GetWindowSpan();
-        var cutoff = span.HasValue ? DateTime.Now - span.Value : _experimentStartTime;
+        var now = DateTime.Now;
+        var cutoff = span.HasValue ? now - span.Value : _experimentStartTime;
 
         var filtered = snapshot.Where(p => p.time >= cutoff).ToArray();
 
@@ -204,8 +205,25 @@ public partial class ChannelChartViewModel : ObservableObject
             CurrentValueText = $"{last.value:F3} {Unit}";
         }
 
+        // Явно выставляем границы X-оси — это даёт и автопрокрутку,
+        // и мгновенное применение при смене диапазона
+        var xAxis = PlotModel.Axes.OfType<DateTimeAxis>().FirstOrDefault();
+        if (xAxis != null)
+        {
+            xAxis.Minimum = DateTimeAxis.ToDouble(cutoff);
+            xAxis.Maximum = DateTimeAxis.ToDouble(now.AddSeconds(2)); // запас справа
+        }
+
+        // Y-ось: сбрасываем в авто, чтобы масштаб подстраивался под видимые данные
+        var yAxis = PlotModel.Axes.OfType<LinearAxis>().FirstOrDefault();
+        if (yAxis != null)
+        {
+            yAxis.Minimum = double.NaN;
+            yAxis.Maximum = double.NaN;
+        }
+
         PlotModel.InvalidatePlot(true);
-        await Task.CompletedTask; // Для совместимости с async
+        await Task.CompletedTask;
     }
 
     private TimeSpan? GetWindowSpan() => SelectedWindow switch
