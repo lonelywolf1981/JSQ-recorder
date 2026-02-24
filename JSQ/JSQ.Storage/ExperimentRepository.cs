@@ -76,6 +76,12 @@ public interface IExperimentRepository
     /// Получить диапазон времени сырых данных эксперимента.
     /// </summary>
     Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Найти все эксперименты, оставшиеся в состоянии Running/Paused после сбоя,
+    /// пометить их как Recovered и вернуть список.
+    /// </summary>
+    Task<List<Experiment>> RecoverOrphanedExperimentsAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -457,6 +463,30 @@ public class ExperimentRepository : IExperimentRepository
 
         var rows = await conn.QueryAsync<int>(sql, new { ExperimentId = experimentId });
         return rows.ToList();
+    }
+
+    public async Task<List<Experiment>> RecoverOrphanedExperimentsAsync(CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+
+        const string selectSql = @"
+            SELECT * FROM experiments
+            WHERE state IN ('Running', 'Paused')
+            ORDER BY created_at ASC;
+        ";
+        var entities = (await conn.QueryAsync<ExperimentEntity>(selectSql)).ToList();
+
+        if (entities.Count == 0)
+            return new List<Experiment>();
+
+        const string updateSql = @"
+            UPDATE experiments
+            SET state = 'Recovered', updated_at = datetime('now')
+            WHERE state IN ('Running', 'Paused');
+        ";
+        await conn.ExecuteAsync(updateSql);
+
+        return entities.Select(e => e.ToExperiment()).ToList();
     }
 
     public async Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId, CancellationToken ct = default)

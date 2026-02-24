@@ -44,6 +44,7 @@ public class ExperimentService : IExperimentService, IDisposable
 
     private CancellationTokenSource? _healthUpdateCts;
     private Task _initTask = Task.CompletedTask;
+    private volatile bool _recoveryDone;
 
     // Счётчики для SamplesPerSecond
     private long _samplesThisWindow = 0;
@@ -101,6 +102,29 @@ public class ExperimentService : IExperimentService, IDisposable
 
             try
             {
+                // Crash recovery: выполняется только один раз при первом BeginMonitoring.
+                // Ищем эксперименты, прерванные предыдущим сбоем, и помечаем их как RECOVERED.
+                if (!_recoveryDone)
+                {
+                    _recoveryDone = true;
+                    try
+                    {
+                        await _initTask;
+                        var orphaned = await _experimentRepo.RecoverOrphanedExperimentsAsync();
+                        foreach (var exp in orphaned)
+                        {
+                            LogReceived?.Invoke(new LogEntry
+                            {
+                                Timestamp = DateTime.Now,
+                                Level = "Warning",
+                                Source = "Recovery",
+                                Message = $"Эксперимент '{exp.Name}' был прерван сбоем — помечен как RECOVERED"
+                            });
+                        }
+                    }
+                    catch { }
+                }
+
                 if (_captureService.Status == ConnectionStatus.Connected ||
                     _captureService.Status == ConnectionStatus.Connecting)
                     await _captureService.DisconnectAsync();
