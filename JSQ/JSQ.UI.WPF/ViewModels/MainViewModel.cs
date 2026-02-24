@@ -296,28 +296,6 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void PausePost(string postId)
-    {
-        var monitor = GetPostMonitor(postId);
-        if (!monitor.CanPause) return;
-
-        _experimentService.PausePost(postId);
-        monitor.State = ExperimentState.Paused;
-        StatusMessage = $"Пост {postId}: запись приостановлена";
-    }
-
-    [RelayCommand]
-    private void ResumePost(string postId)
-    {
-        var monitor = GetPostMonitor(postId);
-        if (!monitor.IsPaused) return;
-
-        _experimentService.ResumePost(postId);
-        monitor.State = ExperimentState.Running;
-        StatusMessage = $"Пост {postId}: запись возобновлена";
-    }
-
-    [RelayCommand]
     private void StopPost(string postId)
     {
         var monitor = GetPostMonitor(postId);
