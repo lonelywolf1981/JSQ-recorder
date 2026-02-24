@@ -11,7 +11,8 @@ namespace JSQ.UI.WPF.ViewModels;
 
 public partial class SettingsViewModel : ObservableObject
 {
-    private const string SettingsFile = "app_settings.json";
+    private static readonly string SettingsFile =
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_settings.json");
 
     [ObservableProperty]
     private string _transmitterHost = "192.168.0.214";
@@ -41,6 +42,14 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _testResultVisible;
+
+    /// <summary>
+    /// Абсолютный путь к БД.
+    /// Относительные пути разрешаются от BaseDirectory приложения.
+    /// </summary>
+    public string ResolvedDatabasePath => Path.IsPathRooted(DatabasePath)
+        ? DatabasePath
+        : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DatabasePath);
 
     public bool Saved { get; private set; }
 

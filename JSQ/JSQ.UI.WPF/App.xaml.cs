@@ -63,7 +63,7 @@ public partial class App : Application
         services.AddSingleton<IDatabaseService>(sp =>
         {
             var settings = sp.GetRequiredService<SettingsViewModel>();
-            return new SqliteDatabaseService(settings.DatabasePath);
+            return new SqliteDatabaseService(settings.ResolvedDatabasePath);
         });
         services.AddSingleton<IBatchWriter>(sp =>
             new BatchWriter(sp.GetRequiredService<IDatabaseService>()));
