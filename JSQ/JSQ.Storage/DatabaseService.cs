@@ -119,8 +119,49 @@ public class SqliteDatabaseService : IDatabaseService
         }
 
         await EnsurePostIdSchemaAsync(conn);
+        await EnsureAggregationAndChannelConfigSchemaAsync(conn);
         
         _initialized = true;
+    }
+
+    private async Task EnsureAggregationAndChannelConfigSchemaAsync(IDbConnection conn)
+    {
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS agg_samples_20s (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                experiment_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                channel_index INTEGER NOT NULL,
+                value_min REAL,
+                value_max REAL,
+                value_avg REAL,
+                sample_count INTEGER,
+                invalid_count INTEGER,
+                quality_flag INTEGER DEFAULT 1,
+                agg_window_sec INTEGER DEFAULT 20,
+                created_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(experiment_id, timestamp, channel_index)
+            );
+        ");
+
+        var aggColumns = (await conn.QueryAsync<TableInfoRow>("PRAGMA table_info(agg_samples_20s);")).ToList();
+        if (!aggColumns.Any(c => string.Equals(c.Name, "agg_window_sec", StringComparison.OrdinalIgnoreCase)))
+        {
+            await conn.ExecuteAsync("ALTER TABLE agg_samples_20s ADD COLUMN agg_window_sec INTEGER DEFAULT 20;");
+        }
+
+        await conn.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_agg_samples_experiment_timestamp ON agg_samples_20s(experiment_id, timestamp);");
+        await conn.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_agg_samples_channel ON agg_samples_20s(experiment_id, channel_index, timestamp);");
+
+        var cfgColumns = (await conn.QueryAsync<TableInfoRow>("PRAGMA table_info(channel_config);")).ToList();
+        if (!cfgColumns.Any(c => string.Equals(c.Name, "high_precision", StringComparison.OrdinalIgnoreCase)))
+        {
+            await conn.ExecuteAsync("ALTER TABLE channel_config ADD COLUMN high_precision INTEGER DEFAULT 0;");
+        }
+        if (!cfgColumns.Any(c => string.Equals(c.Name, "agg_interval_sec", StringComparison.OrdinalIgnoreCase)))
+        {
+            await conn.ExecuteAsync("ALTER TABLE channel_config ADD COLUMN agg_interval_sec INTEGER DEFAULT 20;");
+        }
     }
 
     private async Task EnsurePostIdSchemaAsync(IDbConnection conn)
@@ -325,6 +366,7 @@ public class SqliteDatabaseService : IDatabaseService
                 sample_count INTEGER,
                 invalid_count INTEGER,
                 quality_flag INTEGER DEFAULT 1,
+                agg_window_sec INTEGER DEFAULT 20,
                 created_at TEXT DEFAULT (datetime('now')),
                 UNIQUE(experiment_id, timestamp, channel_index)
             );
@@ -377,7 +419,9 @@ public class SqliteDatabaseService : IDatabaseService
                 channel_type TEXT,
                 min_limit REAL,
                 max_limit REAL,
-                enabled INTEGER DEFAULT 1
+                enabled INTEGER DEFAULT 1,
+                high_precision INTEGER DEFAULT 0,
+                agg_interval_sec INTEGER DEFAULT 20
             );
         ";
         

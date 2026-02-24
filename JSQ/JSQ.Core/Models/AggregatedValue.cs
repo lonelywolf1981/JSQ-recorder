@@ -8,6 +8,7 @@ namespace JSQ.Core.Models;
 public class AggregatedValue
 {
     public int ChannelIndex { get; set; }
+    public int WindowSeconds { get; set; } = 20;
     public DateTime WindowStart { get; set; }
     public DateTime WindowEnd { get; set; }
     

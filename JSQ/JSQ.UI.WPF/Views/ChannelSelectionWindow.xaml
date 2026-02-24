@@ -105,6 +105,15 @@
                         </DataGridTemplateColumn>
 
                         <DataGridTextColumn Header="Канал"   Binding="{Binding Name}"                       Width="80"/>
+                        <DataGridTemplateColumn Header="10s" Width="45" SortMemberPath="HighPrecision">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding HighPrecision, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEnabled="{Binding CanSelect}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="80"/>
                         <DataGridTextColumn Header="Ед."      Binding="{Binding Unit}"                       Width="50"/>
                         <DataGridTextColumn Header="Описание" Binding="{Binding Description}"                Width="*"/>

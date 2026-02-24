@@ -43,6 +43,7 @@ public class ChannelDefinition
     public double? MinLimit { get; set; }
     public double? MaxLimit { get; set; }
     public bool Enabled { get; set; } = true;
+    public bool HighPrecision { get; set; } = false; // true -> 10s, false -> 20s
     
     public override string ToString() => $"{Name} ({Unit})";
 }

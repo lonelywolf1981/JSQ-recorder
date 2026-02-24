@@ -73,6 +73,11 @@ public interface IExperimentRepository
     Task SaveAnomalyEventAsync(AnomalyEvent evt, CancellationToken ct = default);
 
     /// <summary>
+    /// Сохранить агрегированные значения окон
+    /// </summary>
+    Task SaveAggregatesAsync(string experimentId, IEnumerable<AggregatedValue> aggregates, CancellationToken ct = default);
+
+    /// <summary>
     /// Получить все события аномалий для эксперимента
     /// </summary>
     Task<List<AnomalyEventRecord>> GetAnomalyEventsAsync(string experimentId, CancellationToken ct = default);
@@ -164,10 +169,12 @@ public class ExperimentRepository : IExperimentRepository
         const string sql = @"
             INSERT INTO channel_config (
                 experiment_id, channel_index, channel_name, channel_group,
-                channel_type, min_limit, max_limit, enabled
+                channel_type, min_limit, max_limit, enabled,
+                high_precision, agg_interval_sec
             ) VALUES (
                 @ExperimentId, @ChannelIndex, @ChannelName, @ChannelGroup,
-                @ChannelType, @MinLimit, @MaxLimit, @Enabled
+                @ChannelType, @MinLimit, @MaxLimit, @Enabled,
+                @HighPrecision, @AggIntervalSec
             );
         ";
         
@@ -187,7 +194,9 @@ public class ExperimentRepository : IExperimentRepository
                 ChannelType = ch.Type.ToString(),
                 MinLimit = ch.MinLimit,
                 MaxLimit = ch.MaxLimit,
-                Enabled = ch.Enabled ? 1 : 0
+                Enabled = ch.Enabled ? 1 : 0,
+                HighPrecision = ch.HighPrecision ? 1 : 0,
+                AggIntervalSec = ch.HighPrecision ? 10 : 20
             });
         }
     }
@@ -398,24 +407,46 @@ public class ExperimentRepository : IExperimentRepository
     {
         using var conn = _dbService.GetConnection();
 
-        const string sql = @"
-            SELECT timestamp AS Timestamp, value AS Value
-            FROM raw_samples
+        const string aggSql = @"
+            SELECT timestamp AS Timestamp,
+                   COALESCE(value_avg, value_max, value_min) AS Value
+            FROM agg_samples_20s
             WHERE experiment_id = @ExperimentId
               AND channel_index = @ChannelIndex
               AND timestamp >= @StartTime
               AND timestamp <= @EndTime
-              AND is_valid = 1
             ORDER BY timestamp ASC;
         ";
 
-        var rows = await conn.QueryAsync<SampleRow>(sql, new
+        var rows = (await conn.QueryAsync<SampleRow>(aggSql, new
         {
             ExperimentId = experimentId,
             ChannelIndex = channelIndex,
             StartTime = startTime.ToString("O"),
             EndTime = endTime.ToString("O")
-        });
+        })).ToList();
+
+        if (rows.Count == 0)
+        {
+            const string rawSql = @"
+                SELECT timestamp AS Timestamp, value AS Value
+                FROM raw_samples
+                WHERE experiment_id = @ExperimentId
+                  AND channel_index = @ChannelIndex
+                  AND timestamp >= @StartTime
+                  AND timestamp <= @EndTime
+                  AND is_valid = 1
+                ORDER BY timestamp ASC;
+            ";
+
+            rows = (await conn.QueryAsync<SampleRow>(rawSql, new
+            {
+                ExperimentId = experimentId,
+                ChannelIndex = channelIndex,
+                StartTime = startTime.ToString("O"),
+                EndTime = endTime.ToString("O")
+            })).ToList();
+        }
 
         return ParseSampleRows(rows);
     }
@@ -425,24 +456,85 @@ public class ExperimentRepository : IExperimentRepository
     {
         using var conn = _dbService.GetConnection();
 
-        const string sql = @"
-            SELECT timestamp AS Timestamp, value AS Value
-            FROM raw_samples
+        const string aggSql = @"
+            SELECT timestamp AS Timestamp,
+                   COALESCE(value_avg, value_max, value_min) AS Value
+            FROM agg_samples_20s
             WHERE channel_index = @ChannelIndex
               AND timestamp >= @StartTime
               AND timestamp <= @EndTime
-              AND is_valid = 1
             ORDER BY timestamp ASC;
         ";
 
-        var rows = await conn.QueryAsync<SampleRow>(sql, new
+        var rows = (await conn.QueryAsync<SampleRow>(aggSql, new
         {
             ChannelIndex = channelIndex,
             StartTime = startTime.ToString("O"),
             EndTime = endTime.ToString("O")
-        });
+        })).ToList();
+
+        if (rows.Count == 0)
+        {
+            const string rawSql = @"
+                SELECT timestamp AS Timestamp, value AS Value
+                FROM raw_samples
+                WHERE channel_index = @ChannelIndex
+                  AND timestamp >= @StartTime
+                  AND timestamp <= @EndTime
+                  AND is_valid = 1
+                ORDER BY timestamp ASC;
+            ";
+
+            rows = (await conn.QueryAsync<SampleRow>(rawSql, new
+            {
+                ChannelIndex = channelIndex,
+                StartTime = startTime.ToString("O"),
+                EndTime = endTime.ToString("O")
+            })).ToList();
+        }
 
         return ParseSampleRows(rows);
+    }
+
+    public async Task SaveAggregatesAsync(
+        string experimentId,
+        IEnumerable<AggregatedValue> aggregates,
+        CancellationToken ct = default)
+    {
+        var rows = aggregates?.ToList() ?? new List<AggregatedValue>();
+        if (rows.Count == 0)
+            return;
+
+        using var conn = _dbService.GetConnection();
+        using var transaction = conn.BeginTransaction();
+
+        const string sql = @"
+            INSERT OR REPLACE INTO agg_samples_20s (
+                experiment_id, timestamp, channel_index,
+                value_min, value_max, value_avg,
+                sample_count, invalid_count, quality_flag, agg_window_sec
+            ) VALUES (
+                @ExperimentId, @Timestamp, @ChannelIndex,
+                @Min, @Max, @Avg,
+                @SampleCount, @InvalidCount, @QualityFlag, @WindowSeconds
+            );
+        ";
+
+        await conn.ExecuteAsync(sql, rows.Select(a => new
+        {
+            ExperimentId = experimentId,
+            Timestamp = a.WindowStart.ToString("O"),
+            a.ChannelIndex,
+            Min = a.Min,
+            Max = a.Max,
+            Avg = a.Avg,
+            a.SampleCount,
+            a.InvalidCount,
+            a.QualityFlag,
+            WindowSeconds = a.WindowSeconds <= 0 ? 20 : a.WindowSeconds
+        }), transaction);
+
+        transaction.Commit();
     }
 
     private static List<(DateTime time, double value)> ParseSampleRows(IEnumerable<SampleRow> rows)
@@ -507,9 +599,16 @@ public class ExperimentRepository : IExperimentRepository
     {
         using var conn = _dbService.GetConnection();
         const string sql = @"
-            SELECT DISTINCT channel_index
-            FROM raw_samples
-            WHERE experiment_id = @ExperimentId
+            SELECT channel_index
+            FROM (
+                SELECT DISTINCT channel_index
+                FROM agg_samples_20s
+                WHERE experiment_id = @ExperimentId
+                UNION
+                SELECT DISTINCT channel_index
+                FROM raw_samples
+                WHERE experiment_id = @ExperimentId
+            )
             ORDER BY channel_index ASC;
         ";
 
@@ -563,9 +662,18 @@ public class ExperimentRepository : IExperimentRepository
     {
         using var conn = _dbService.GetConnection();
         const string sql = @"
-            SELECT MIN(timestamp) AS StartTimestamp, MAX(timestamp) AS EndTimestamp
-            FROM raw_samples
-            WHERE experiment_id = @ExperimentId;
+            SELECT
+                MIN(ts) AS StartTimestamp,
+                MAX(ts) AS EndTimestamp
+            FROM (
+                SELECT timestamp AS ts
+                FROM agg_samples_20s
+                WHERE experiment_id = @ExperimentId
+                UNION ALL
+                SELECT timestamp AS ts
+                FROM raw_samples
+                WHERE experiment_id = @ExperimentId
+            );
         ";
 
         var row = await conn.QueryFirstOrDefaultAsync<SampleRangeRow>(sql, new { ExperimentId = experimentId });

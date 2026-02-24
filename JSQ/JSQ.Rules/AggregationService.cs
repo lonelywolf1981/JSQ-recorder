@@ -49,15 +49,22 @@ public class AggregationStatistics
 public class AggregationService : IAggregationService
 {
     private readonly int _intervalSeconds;
+    private readonly int _highPrecisionIntervalSeconds;
+    private readonly HashSet<int> _highPrecisionChannels;
     private readonly ConcurrentDictionary<int, WindowState> _windows = new();
     private readonly object _lock = new();
     private int _completedWindows;
     private int _totalSamples;
     private DateTime _lastAggregationTime = DateTime.MinValue;
     
-    public AggregationService(int intervalSeconds = 20)
+    public AggregationService(
+        int intervalSeconds = 20,
+        IEnumerable<int>? highPrecisionChannels = null,
+        int highPrecisionIntervalSeconds = 10)
     {
         _intervalSeconds = intervalSeconds;
+        _highPrecisionIntervalSeconds = highPrecisionIntervalSeconds;
+        _highPrecisionChannels = new HashSet<int>(highPrecisionChannels ?? Array.Empty<int>());
     }
     
     public void AddSample(Sample sample)
@@ -66,10 +73,11 @@ public class AggregationService : IAggregationService
             return;
         
         // Вычисляем окно времени (округление вниз до интервала)
-        var windowStart = GetWindowStart(sample.Timestamp);
+        var intervalSeconds = GetChannelIntervalSeconds(sample.ChannelIndex);
+        var windowStart = GetWindowStart(sample.Timestamp, intervalSeconds);
         
         var window = _windows.GetOrAdd(sample.ChannelIndex, _ => new WindowState())
-            .GetOrCreateWindow(windowStart, _intervalSeconds);
+            .GetOrCreateWindow(windowStart, intervalSeconds);
         
         lock (_lock)
         {
@@ -88,7 +96,7 @@ public class AggregationService : IAggregationService
             var channelIndex = kvp.Key;
             var windowState = kvp.Value;
             
-            foreach (var window in windowState.GetCompletedWindows(now, _intervalSeconds))
+            foreach (var window in windowState.GetCompletedWindows(now))
             {
                 var aggregate = window.ToAggregatedValue(channelIndex);
                 if (aggregate != null)
@@ -141,11 +149,18 @@ public class AggregationService : IAggregationService
         };
     }
     
-    private DateTime GetWindowStart(DateTime timestamp)
+    private int GetChannelIntervalSeconds(int channelIndex)
+    {
+        return _highPrecisionChannels.Contains(channelIndex)
+            ? _highPrecisionIntervalSeconds
+            : _intervalSeconds;
+    }
+
+    private static DateTime GetWindowStart(DateTime timestamp, int intervalSeconds)
     {
         // Округление вниз до ближайшего интервала
         var ticks = timestamp.Ticks;
-        var intervalTicks = TimeSpan.FromSeconds(_intervalSeconds).Ticks;
+        var intervalTicks = TimeSpan.FromSeconds(intervalSeconds).Ticks;
         var windowTicks = (ticks / intervalTicks) * intervalTicks;
         return new DateTime(windowTicks, DateTimeKind.Local);
     }
@@ -171,7 +186,7 @@ public class AggregationService : IAggregationService
             }
         }
 
-        public IEnumerable<AggregationWindow> GetCompletedWindows(DateTime now, int intervalSeconds)
+        public IEnumerable<AggregationWindow> GetCompletedWindows(DateTime now)
         {
             var completed = new List<AggregationWindow>();
 
@@ -263,6 +278,7 @@ public class AggregationService : IAggregationService
             return new AggregatedValue
             {
                 ChannelIndex = channelIndex,
+                WindowSeconds = IntervalSeconds,
                 WindowStart = WindowStart,
                 WindowEnd = WindowStart.AddSeconds(IntervalSeconds),
                 Min = _values.Min(),

@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS channel_config (
     min_limit REAL,
     max_limit REAL,
     enabled INTEGER DEFAULT 1,
+    high_precision INTEGER DEFAULT 0, -- 1 -> 10s, 0 -> 20s
+    agg_interval_sec INTEGER DEFAULT 20,
     FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE,
     UNIQUE(experiment_id, channel_index)
 );
@@ -75,6 +77,7 @@ CREATE TABLE IF NOT EXISTS agg_samples_20s (
     sample_count INTEGER,
     invalid_count INTEGER,
     quality_flag INTEGER DEFAULT 1, -- 1 = OK, 0 = degraded
+    agg_window_sec INTEGER DEFAULT 20,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE,
     UNIQUE(experiment_id, timestamp, channel_index)

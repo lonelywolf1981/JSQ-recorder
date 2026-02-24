@@ -31,6 +31,9 @@ public partial class ChannelDefinitionViewModel : ObservableObject
     
     [ObservableProperty]
     private bool _isSelected;
+
+    [ObservableProperty]
+    private bool _highPrecision;
     
     [ObservableProperty]
     private double? _minLimit;
@@ -73,6 +76,7 @@ public partial class ChannelDefinitionViewModel : ObservableObject
         Type = channel.Type;
         IsEnabled = channel.Enabled;
         IsSelected = channel.Enabled;
+        HighPrecision = channel.HighPrecision;
         MinLimit = channel.MinLimit;
         MaxLimit = channel.MaxLimit;
         
@@ -92,6 +96,7 @@ public partial class ChannelDefinitionViewModel : ObservableObject
         Group = channel.Group;
         Type = channel.Type;
         IsEnabled = channel.Enabled;
+        HighPrecision = channel.HighPrecision;
         MinLimit = channel.MinLimit;
         MaxLimit = channel.MaxLimit;
     }
@@ -110,6 +115,7 @@ public partial class ChannelDefinitionViewModel : ObservableObject
             Group = Group,
             Type = Type,
             Enabled = IsEnabled,
+            HighPrecision = HighPrecision,
             MinLimit = MinLimit,
             MaxLimit = MaxLimit
         };

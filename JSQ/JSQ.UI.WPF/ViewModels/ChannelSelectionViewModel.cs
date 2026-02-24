@@ -344,6 +344,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
             {
                 minLimit = lim.Min;
                 maxLimit = lim.Max;
+                def.HighPrecision = lim.HighPrecision;
             }
 
             AllChannels.Add(new ChannelDefinitionViewModel
@@ -358,6 +359,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
                 IsEnabled = true,
                 IsSelected = false,
                 CanSelect = true,
+                HighPrecision = def.HighPrecision,
                 MinLimit = minLimit,
                 MaxLimit = maxLimit
             });
@@ -378,6 +380,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
     {
         public double? Min { get; set; }
         public double? Max { get; set; }
+        public bool HighPrecision { get; set; }
     }
 
     private Dictionary<int, ChannelLimitEntry> LoadLimitsFromFile()
@@ -403,8 +406,13 @@ public partial class ChannelSelectionViewModel : ObservableObject
         {
             var dict = new Dictionary<string, ChannelLimitEntry>();
             foreach (var ch in AllChannels)
-                if (ch.MinLimit.HasValue || ch.MaxLimit.HasValue)
-                    dict[ch.Index.ToString()] = new ChannelLimitEntry { Min = ch.MinLimit, Max = ch.MaxLimit };
+                if (ch.MinLimit.HasValue || ch.MaxLimit.HasValue || ch.HighPrecision)
+                    dict[ch.Index.ToString()] = new ChannelLimitEntry
+                    {
+                        Min = ch.MinLimit,
+                        Max = ch.MaxLimit,
+                        HighPrecision = ch.HighPrecision
+                    };
             File.WriteAllText(LimitsPath,
                 JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true }));
         }
@@ -419,6 +427,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
             {
                 def.MinLimit = ch.MinLimit;
                 def.MaxLimit = ch.MaxLimit;
+                def.HighPrecision = ch.HighPrecision;
             }
         }
     }

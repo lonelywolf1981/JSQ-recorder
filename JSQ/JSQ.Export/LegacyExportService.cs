@@ -61,15 +61,21 @@ public class LegacyExportService : ILegacyExportService
         }
 
         var sampleRows = (await conn.QueryAsync<RawSampleRow>(
-            @"SELECT timestamp AS Timestamp, channel_index AS ChannelIndex, value AS Value, is_valid AS IsValid
-              FROM raw_samples
+            @"SELECT timestamp AS Timestamp,
+                     channel_index AS ChannelIndex,
+                     COALESCE(value_avg, value_max, value_min) AS Value,
+                     CASE
+                        WHEN sample_count > 0 AND COALESCE(value_avg, value_max, value_min) IS NOT NULL THEN 1
+                        ELSE 0
+                     END AS IsValid
+              FROM agg_samples_20s
               WHERE experiment_id = @ExperimentId
               ORDER BY timestamp ASC, channel_index ASC;",
             new { ExperimentId = experimentId })).ToList();
 
         if (sampleRows.Count == 0)
         {
-            throw new InvalidOperationException("Для выбранного эксперимента нет данных для экспорта.");
+            throw new InvalidOperationException("Для выбранного эксперимента нет агрегированных данных для экспорта.");
         }
 
         var resolvedPackageName = string.IsNullOrWhiteSpace(packageName)

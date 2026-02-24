@@ -201,8 +201,15 @@ public class ExperimentService : IExperimentService, IDisposable
             experiment.State = ExperimentState.Running;
             experiment.PostId = postId;
 
+            var highPrecisionChannels = channelIndices
+                .Where(idx => ChannelRegistry.All.TryGetValue(idx, out var def) && def.HighPrecision)
+                .ToList();
+
             var anomalyDetector = new AnomalyDetector(experiment.Id);
-            var aggregationService = new AggregationService(experiment.AggregationIntervalSec);
+            var aggregationService = new AggregationService(
+                experiment.AggregationIntervalSec,
+                highPrecisionChannels,
+                highPrecisionIntervalSeconds: 10);
 
             // Правила для всех каналов поста: лимиты из реестра + таймаут NoData
             var rules = new List<AnomalyRule>();
@@ -352,11 +359,14 @@ public class ExperimentService : IExperimentService, IDisposable
         }
 
         var experiment = state.Experiment;
+        var tailAggregates = state.AggregationService.Flush().ToList();
         Task.Run(async () =>
         {
             try
             {
-                await _batchWriter.FlushAsync();
+                if (tailAggregates.Count > 0)
+                    await _experimentRepo.SaveAggregatesAsync(experiment.Id, tailAggregates);
+
                 await _experimentRepo.FinalizeAsync(experiment.Id);
                 LogReceived?.Invoke(new LogEntry
                 {
@@ -464,8 +474,6 @@ public class ExperimentService : IExperimentService, IDisposable
 
         foreach (var (postId, state, samples) in routes)
         {
-            _batchWriter.AddSamples(state.Experiment.Id, samples);
-
             foreach (var sample in samples)
             {
                 state.AggregationService.AddSample(sample);
@@ -518,7 +526,7 @@ public class ExperimentService : IExperimentService, IDisposable
             while (!_healthUpdateCts.Token.IsCancellationRequested)
             {
                 try { UpdateHealth(); } catch { }
-                try { ProcessAggregates(); } catch { }
+                try { await ProcessAggregatesAsync(); } catch { }
 
                 await Task.Delay(1000, _healthUpdateCts.Token).ConfigureAwait(false);
 
@@ -560,7 +568,7 @@ public class ExperimentService : IExperimentService, IDisposable
         HealthUpdated?.Invoke(health);
     }
 
-    private void ProcessAggregates()
+    private async Task ProcessAggregatesAsync()
     {
         List<PostState> active;
         lock (_stateLock)
@@ -572,10 +580,17 @@ public class ExperimentService : IExperimentService, IDisposable
             if (state.AggregationTick < 5) continue;
             state.AggregationTick = 0;
 
-            foreach (var agg in state.AggregationService.GetReadyAggregates())
+            var readyAggregates = state.AggregationService.GetReadyAggregates().ToList();
+
+            foreach (var agg in readyAggregates)
             {
                 foreach (var evt in state.AnomalyDetector.CheckAggregate(agg))
                     FirePostAnomaly(state.PostId, state, evt);
+            }
+
+            if (readyAggregates.Count > 0)
+            {
+                try { await _experimentRepo.SaveAggregatesAsync(state.Experiment.Id, readyAggregates); } catch { }
             }
 
             foreach (var evt in state.AnomalyDetector.CheckTimeouts(JsqClock.Now))
