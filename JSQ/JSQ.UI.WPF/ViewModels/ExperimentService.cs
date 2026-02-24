@@ -45,6 +45,10 @@ public class ExperimentService : IExperimentService, IDisposable
     private CancellationTokenSource? _healthUpdateCts;
     private Task _initTask = Task.CompletedTask;
 
+    // Счётчики для SamplesPerSecond
+    private long _samplesThisWindow = 0;
+    private long _lastSamplesPerSecond = 0;
+
     public ExperimentService(IDatabaseService dbService, IBatchWriter batchWriter, IExperimentRepository experimentRepo)
     {
         _dbService = dbService;
@@ -360,6 +364,9 @@ public class ExperimentService : IExperimentService, IDisposable
 
         if (values.Count == 0) return;
 
+        // Считаем декодированные значения для SamplesPerSecond
+        Interlocked.Add(ref _samplesThisWindow, values.Count);
+
         foreach (var cv in values)
         {
             ChannelValueReceived?.Invoke(cv.Index, cv.Value);
@@ -433,6 +440,23 @@ public class ExperimentService : IExperimentService, IDisposable
             Source = "TCP",
             Message = $"Статус подключения: {status}"
         });
+
+        // Авто-переподключение: если соединение потеряно — пробуем снова через 5 секунд.
+        // _monitoringLock в BeginMonitoring защищает от параллельных попыток.
+        if (status == ConnectionStatus.Disconnected || status == ConnectionStatus.Error)
+        {
+            var cts = _healthUpdateCts;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(5000).ConfigureAwait(false);
+                    if (!(cts?.Token.IsCancellationRequested ?? true))
+                        BeginMonitoring();
+                }
+                catch { }
+            });
+        }
     }
 
     // ─── Фоновый цикл здоровья ──────────────────────────────────────────────
@@ -470,15 +494,16 @@ public class ExperimentService : IExperimentService, IDisposable
     private void UpdateHealth()
     {
         var stats = _captureService.Statistics;
-        int runningPosts;
-        lock (_stateLock)
-            runningPosts = _postStates.Count(s => s.Value.IsRunning);
+
+        // Точный счётчик: сбрасываем накопленное за 1 секунду
+        var samples = Interlocked.Exchange(ref _samplesThisWindow, 0);
+        _lastSamplesPerSecond = samples;
 
         var health = new SystemHealth
         {
             TotalChannels = 134,
             TotalSamplesReceived = stats.TotalPacketsReceived,
-            SamplesPerSecond = stats.BytesPerSecond / 100,
+            SamplesPerSecond = (ulong)_lastSamplesPerSecond,
             OverallStatus = stats.Status == ConnectionStatus.Connected
                 ? HealthStatus.OK
                 : HealthStatus.NoData
