@@ -148,7 +148,8 @@
                         <DataGrid Grid.Row="2" ItemsSource="{Binding PostAFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
-                                  RowStyle="{StaticResource ChannelRowStyle}">
+                                  RowStyle="{StaticResource ChannelRowStyle}"
+                                  MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -260,7 +261,8 @@
                         <DataGrid Grid.Row="2" ItemsSource="{Binding PostBFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
-                                  RowStyle="{StaticResource ChannelRowStyle}">
+                                  RowStyle="{StaticResource ChannelRowStyle}"
+                                  MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -372,7 +374,8 @@
                         <DataGrid Grid.Row="2" ItemsSource="{Binding PostCFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
-                                  RowStyle="{StaticResource ChannelRowStyle}">
+                                  RowStyle="{StaticResource ChannelRowStyle}"
+                                  MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>

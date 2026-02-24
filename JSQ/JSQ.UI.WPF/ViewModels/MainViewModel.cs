@@ -372,6 +372,20 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = $"Пост {postId}: экспорт...";
     }
 
+    [RelayCommand]
+    private void OpenChannelChart(ChannelStatus? channel)
+    {
+        if (channel == null) return;
+
+        var vm = new ChannelChartViewModel(channel, _experimentService);
+        var window = new Views.ChannelChartWindow(vm)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        window.Closed += (_, _) => vm.Unsubscribe();
+        window.Show();
+    }
+
     // --- Обработчики событий от сервиса ---
 
     private void OnChannelValueReceived(int index, double value)
