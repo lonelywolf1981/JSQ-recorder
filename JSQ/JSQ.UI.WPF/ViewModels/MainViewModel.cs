@@ -424,9 +424,6 @@ public partial class MainViewModel : ObservableObject
         {
             ch.IsRecording = false;  // сбрасываем флаг записи
 
-            // Оставляем Alarm видимым — оператор должен знать что был сбой
-            if (ch.Status == HealthStatus.Alarm) continue;
-
             ch.Status = AlertStatusPolicy.ResolveAfterStop(
                 ch.LastUpdateTime,
                 ch.CurrentValue,
