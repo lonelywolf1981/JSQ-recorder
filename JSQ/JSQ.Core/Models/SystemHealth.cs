@@ -31,6 +31,9 @@ public partial class ChannelStatus : ObservableObject
 
     /// <summary>Пост, которому назначен канал: "A", "B", "C" или пустая строка.</summary>
     [ObservableProperty] private string _post = string.Empty;
+
+    /// <summary>True если запись на этом посту активна.</summary>
+    [ObservableProperty] private bool _isRecording;
 }
 
 /// <summary>

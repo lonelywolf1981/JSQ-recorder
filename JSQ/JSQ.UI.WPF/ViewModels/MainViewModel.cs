@@ -422,6 +422,8 @@ public partial class MainViewModel : ObservableObject
         var now = DateTime.Now;
         foreach (var ch in GetPostChannels(postId))
         {
+            ch.IsRecording = false;  // сбрасываем флаг записи
+
             // Оставляем Alarm видимым — оператор должен знать что был сбой
             if (ch.Status == HealthStatus.Alarm) continue;
 
@@ -605,15 +607,12 @@ public partial class MainViewModel : ObservableObject
                 }
                 else
                 {
-                    // Данные пришли — канал живой. Статус определяем по лимитам
-                    // (проверка лимитов актуальна только во время записи)
+                    // Данные пришли — канал живой
                     var monitor = GetPostMonitor(ch.Post);
-                    if (!monitor.IsRunning)
-                    {
-                        // Вне записи канал не подсвечиваем как OK — остаётся серым.
-                        ch.Status = HealthStatus.NoData;
-                    }
-                    else if (def != null &&
+                    ch.IsRecording = monitor.IsRunning;
+
+                    if (monitor.IsRunning &&
+                        def != null &&
                         ((def.MinLimit.HasValue && value < def.MinLimit.Value) ||
                          (def.MaxLimit.HasValue && value > def.MaxLimit.Value)))
                     {
@@ -622,7 +621,7 @@ public partial class MainViewModel : ObservableObject
                     else if (ch.Status != HealthStatus.Alarm)
                     {
                         // Не сбрасываем Alarm — его снимает только DataRestored
-                        ch.Status = HealthStatus.OK;
+                        ch.Status = HealthStatus.OK;  // данные идут → канал живой
                     }
                 }
             }
@@ -725,6 +724,7 @@ public partial class MainViewModel : ObservableObject
                     if (isStale)
                     {
                         ch.Status = HealthStatus.NoData;
+                        ch.IsRecording = false;
                     }
                     continue;
                 }

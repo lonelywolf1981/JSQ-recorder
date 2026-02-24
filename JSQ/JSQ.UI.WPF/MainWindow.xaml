@@ -14,8 +14,9 @@
 
         <Style x:Key="ChannelRowStyle" TargetType="DataGridRow">
             <Style.Triggers>
+                <!-- данные идут, запись не ведётся → серая строка -->
                 <DataTrigger Binding="{Binding Status}" Value="OK">
-                    <Setter Property="Background" Value="#F1F8F1"/>
+                    <Setter Property="Background" Value="#F5F5F5"/>
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Status}" Value="Warning">
                     <Setter Property="Background" Value="#FFF9C4"/>
@@ -27,6 +28,34 @@
                     <Setter Property="Background" Value="#F5F5F5"/>
                     <Setter Property="Foreground" Value="#9E9E9E"/>
                 </DataTrigger>
+                <!-- запись активна + OK → зелёная строка (перекрывает trigger выше) -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Status}" Value="OK"/>
+                        <Condition Binding="{Binding IsRecording}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="#F1F8F1"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StatusDotStyle" TargetType="Ellipse">
+            <Setter Property="Fill" Value="#BDBDBD"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Status}" Value="Warning">
+                    <Setter Property="Fill" Value="#FF9800"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Alarm">
+                    <Setter Property="Fill" Value="#F44336"/>
+                </DataTrigger>
+                <!-- Зелёная точка только при активной записи + OK -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Status}" Value="OK"/>
+                        <Condition Binding="{Binding IsRecording}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Fill" Value="#4CAF50"/>
+                </MultiDataTrigger>
             </Style.Triggers>
         </Style>
     </Window.Resources>
@@ -162,24 +191,8 @@
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Ellipse.Style>
-                                                    <Style TargetType="Ellipse">
-                                                        <Setter Property="Fill" Value="#BDBDBD"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Status}" Value="OK">
-                                                                <Setter Property="Fill" Value="#4CAF50"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Status}" Value="Warning">
-                                                                <Setter Property="Fill" Value="#FF9800"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Status}" Value="Alarm">
-                                                                <Setter Property="Fill" Value="#F44336"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Ellipse.Style>
-                                            </Ellipse>
+                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                     Style="{StaticResource StatusDotStyle}"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -283,24 +296,8 @@
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Ellipse.Style>
-                                                    <Style TargetType="Ellipse">
-                                                        <Setter Property="Fill" Value="#BDBDBD"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Status}" Value="OK">
-                                                                <Setter Property="Fill" Value="#4CAF50"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Status}" Value="Warning">
-                                                                <Setter Property="Fill" Value="#FF9800"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Status}" Value="Alarm">
-                                                                <Setter Property="Fill" Value="#F44336"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Ellipse.Style>
-                                            </Ellipse>
+                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                     Style="{StaticResource StatusDotStyle}"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -404,24 +401,8 @@
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Ellipse.Style>
-                                                    <Style TargetType="Ellipse">
-                                                        <Setter Property="Fill" Value="#BDBDBD"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Status}" Value="OK">
-                                                                <Setter Property="Fill" Value="#4CAF50"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Status}" Value="Warning">
-                                                                <Setter Property="Fill" Value="#FF9800"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Status}" Value="Alarm">
-                                                                <Setter Property="Fill" Value="#F44336"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Ellipse.Style>
-                                            </Ellipse>
+                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                     Style="{StaticResource StatusDotStyle}"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
