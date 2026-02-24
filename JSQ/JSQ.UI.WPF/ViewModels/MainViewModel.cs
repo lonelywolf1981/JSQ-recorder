@@ -191,7 +191,7 @@ public partial class MainViewModel : ObservableObject
         {
             var tail = snapshot.lastPacketTime == default
                 ? string.Empty
-                : $"; последний пакет {(DateTime.Now - snapshot.lastPacketTime).TotalSeconds:F1} с назад";
+                : $"; последний пакет {(JsqClock.Now - snapshot.lastPacketTime).TotalSeconds:F1} с назад";
 
             return Task.FromResult((
                 true,
@@ -466,7 +466,7 @@ public partial class MainViewModel : ObservableObject
 
     private void NormalizePostStatusesAfterStop(string postId)
     {
-        var now = DateTime.Now;
+        var now = JsqClock.Now;
         foreach (var ch in GetPostChannels(postId))
         {
             ch.IsRecording = false;  // сбрасываем флаг записи
@@ -540,7 +540,7 @@ public partial class MainViewModel : ObservableObject
 
             LogEntries.Insert(0, new LogEntry
             {
-                Timestamp = DateTime.Now,
+                Timestamp = JsqClock.Now,
                 Level = "Info",
                 Source = "Export",
                 Post = postId,
@@ -636,7 +636,7 @@ public partial class MainViewModel : ObservableObject
             foreach (var ch in statuses)
             {
                 ch.CurrentValue = double.IsNaN(value) ? (double?)null : value;
-                ch.LastUpdateTime = DateTime.Now;
+                ch.LastUpdateTime = JsqClock.Now;
 
                 if (double.IsNaN(value))
                 {
@@ -749,7 +749,7 @@ public partial class MainViewModel : ObservableObject
         // Вне записи: любой устаревший статус → NoData (серый), включая бывший Alarm.
         // Сами оповещения генерирует AnomalyDetector.CheckTimeouts (через 10 сек),
         // а не этот таймер — чтобы исключить ложные срабатывания при паузах потока.
-        var now = DateTime.Now;
+        var now = JsqClock.Now;
         foreach (var statuses in _channelMap.Values)
         {
             foreach (var ch in statuses)

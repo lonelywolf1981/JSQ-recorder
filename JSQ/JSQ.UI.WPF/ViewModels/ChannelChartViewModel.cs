@@ -48,7 +48,7 @@ public partial class ChannelChartViewModel : ObservableObject
         Unit = channel.Unit ?? string.Empty;
         _service = service;
         // Если запись идёт — запоминаем старт; иначе показываем последние 5 минут
-        _experimentStartTime = experimentStart ?? DateTime.Now.AddMinutes(-5);
+        _experimentStartTime = experimentStart ?? JsqClock.Now.AddMinutes(-5);
 
         double? minLimit = null;
         double? maxLimit = null;
@@ -138,7 +138,7 @@ public partial class ChannelChartViewModel : ObservableObject
         if (_historyLoaded) return;
         
         // Получаем время старта эксперимента
-        var endTime = DateTime.Now;
+        var endTime = JsqClock.Now;
         var startTime = _experimentStartTime;
         
         // Если эксперимент еще не запущен, показываем только новые данные
@@ -173,7 +173,7 @@ public partial class ChannelChartViewModel : ObservableObject
 
         lock (_pointsLock)
         {
-            _rawPoints.Add((DateTime.Now, value));
+            _rawPoints.Add((JsqClock.Now, value));
             // Ограничиваем буфер — 100 000 точек (~24 часа при 1 Гц)
             if (_rawPoints.Count > 100000)
                 _rawPoints.RemoveRange(0, 10000);
@@ -190,7 +190,7 @@ public partial class ChannelChartViewModel : ObservableObject
         }
 
         var span = GetWindowSpan();
-        var now = DateTime.Now;
+        var now = JsqClock.Now;
         var cutoff = span.HasValue ? now - span.Value : _experimentStartTime;
 
         var filtered = snapshot.Where(p => p.time >= cutoff).ToArray();

@@ -10,6 +10,7 @@ using Microsoft.Win32;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
+using JSQ.Core.Models;
 using JSQ.Export;
 using JSQ.UI.WPF.ViewModels;
 
@@ -199,7 +200,7 @@ public partial class EventHistoryWindow : Window
                 }
                 else
                 {
-                    var fallback = DateTime.Now.AddHours(-1);
+                    var fallback = JsqClock.Now.AddHours(-1);
                     FromDatePicker.SelectedDate = fallback.Date;
                     FromTimeBox.Text = fallback.ToString("HH:mm:ss");
                 }
@@ -211,7 +212,7 @@ public partial class EventHistoryWindow : Window
                 }
                 else
                 {
-                    var fallback = DateTime.Now;
+                    var fallback = JsqClock.Now;
                     ToDatePicker.SelectedDate = fallback.Date;
                     ToTimeBox.Text = fallback.ToString("HH:mm:ss");
                 }
@@ -300,8 +301,8 @@ public partial class EventHistoryWindow : Window
 
     private (DateTime start, DateTime end, bool ok, string error) GetSelectedRange()
     {
-        var startDate = FromDatePicker.SelectedDate ?? _experimentStart ?? DateTime.Now.AddHours(-1);
-        var endDate = ToDatePicker.SelectedDate ?? _experimentEnd ?? DateTime.Now;
+        var startDate = FromDatePicker.SelectedDate ?? _experimentStart ?? JsqClock.Now.AddHours(-1);
+        var endDate = ToDatePicker.SelectedDate ?? _experimentEnd ?? JsqClock.Now;
 
         if (!TryParseTime(FromTimeBox.Text, out var startTime))
             return (DateTime.MinValue, DateTime.MinValue, false, "Некорректное время в поле 'С' (ожидается HH:mm:ss)");
@@ -441,7 +442,7 @@ public partial class EventHistoryWindow : Window
     {
         var baseName = $"Post{selected.PostId}_{selected.StartTime:yyyyMMdd_HHmmss}_{selected.Name}";
         if (string.IsNullOrWhiteSpace(baseName))
-            baseName = $"Post{selected.PostId}_{DateTime.Now:yyyyMMdd_HHmmss}";
+            baseName = $"Post{selected.PostId}_{JsqClock.Now:yyyyMMdd_HHmmss}";
 
         foreach (var ch in Path.GetInvalidFileNameChars())
             baseName = baseName.Replace(ch, '_');

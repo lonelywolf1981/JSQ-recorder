@@ -234,7 +234,7 @@ public partial class ChannelSelectionViewModel : ObservableObject
         {
             Name = NewPresetName,
             SelectedChannelIndices = selectedChannels,
-            CreatedAt = DateTime.Now
+            CreatedAt = JsqClock.Now
         };
 
         var presets = LoadAllPresets();

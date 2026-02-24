@@ -88,7 +88,7 @@ public class BatchWriter : IBatchWriter
             
             // Проверяем необходимость flush
             if (_buffer.Count >= _batchSize || 
-                (DateTime.Now - _lastFlushTime) >= _flushInterval)
+                (JsqClock.Now - _lastFlushTime) >= _flushInterval)
             {
                 FlushInternal();
             }
@@ -120,7 +120,7 @@ public class BatchWriter : IBatchWriter
             }
             
             if (_buffer.Count >= _batchSize || 
-                (DateTime.Now - _lastFlushTime) >= _flushInterval)
+                (JsqClock.Now - _lastFlushTime) >= _flushInterval)
             {
                 FlushInternal();
             }
@@ -163,7 +163,7 @@ public class BatchWriter : IBatchWriter
             // Обновляем статистику
             _stats.TotalSamplesWritten += (ulong)_buffer.Count;
             _stats.TotalBatchesWritten++;
-            _stats.LastWriteTime = DateTime.Now;
+            _stats.LastWriteTime = JsqClock.Now;
             
             // Скользящее среднее длительности записи
             var currentAvg = _stats.AvgWriteDuration.TotalMilliseconds;
@@ -173,7 +173,7 @@ public class BatchWriter : IBatchWriter
             );
             
             _buffer.Clear();
-            _lastFlushTime = DateTime.Now;
+            _lastFlushTime = JsqClock.Now;
         }
         catch (Exception ex)
         {
