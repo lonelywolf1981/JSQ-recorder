@@ -43,12 +43,11 @@
 
         <TextBlock Grid.Row="3" Grid.Column="0" Text="Хладагент:" VerticalAlignment="Center" Margin="0,5"/>
         <ComboBox Grid.Row="3" Grid.Column="1" Margin="5,5"
-                  IsEditable="True"
-                  Text="{Binding Refrigerant, UpdateSourceTrigger=PropertyChanged}">
-            <ComboBoxItem Content="R404a"/>
-            <ComboBoxItem Content="R410a"/>
-            <ComboBoxItem Content="R134a"/>
-            <ComboBoxItem Content="R22"/>
+                  IsEditable="False"
+                  SelectedValuePath="Content"
+                  SelectedValue="{Binding Refrigerant, UpdateSourceTrigger=PropertyChanged}">
+            <ComboBoxItem Content="R290"/>
+            <ComboBoxItem Content="R600a"/>
         </ComboBox>
 
         <Separator Grid.Row="4" Grid.ColumnSpan="2" Margin="0,10"/>

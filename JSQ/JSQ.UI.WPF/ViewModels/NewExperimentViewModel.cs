@@ -17,7 +17,7 @@ public partial class NewExperimentViewModel : ObservableObject
     private string _operator = string.Empty;
 
     [ObservableProperty]
-    private string _refrigerant = "R404a";
+    private string _refrigerant = "R290";
 
     public bool Confirmed { get; private set; }
 

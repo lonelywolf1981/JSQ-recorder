@@ -28,6 +28,7 @@ public partial class ChannelStatus : ObservableObject
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private double? _minLimit;
     [ObservableProperty] private double? _maxLimit;
+    [ObservableProperty] private bool _highPrecision;
 
     /// <summary>Пост, которому назначен канал: "A", "B", "C" или пустая строка.</summary>
     [ObservableProperty] private string _post = string.Empty;

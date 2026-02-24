@@ -245,6 +245,9 @@ public partial class MainViewModel : ObservableObject
             ChannelIndex = idx,
             ChannelName = def.Name,
             Unit = def.Unit,
+            MinLimit = def.MinLimit,
+            MaxLimit = def.MaxLimit,
+            HighPrecision = def.HighPrecision,
             Post = postId,
             Status = HealthStatus.NoData
         };
@@ -354,6 +357,9 @@ public partial class MainViewModel : ObservableObject
                 ChannelIndex = idx,
                 ChannelName = def.Name,
                 Unit = def.Unit,
+                MinLimit = def.MinLimit,
+                MaxLimit = def.MaxLimit,
+                HighPrecision = def.HighPrecision,
                 Post = postId,
                 Status = HealthStatus.NoData
             };

@@ -195,6 +195,9 @@
                                 <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
                                 <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
                                 <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="Min"       Binding="{Binding MinLimit, StringFormat=F3}" Width="75"/>
+                                <DataGridTextColumn Header="Max"       Binding="{Binding MaxLimit, StringFormat=F3}" Width="75"/>
+                                <DataGridCheckBoxColumn Header="10s"   Binding="{Binding HighPrecision}" Width="45"/>
                                 <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
                                 <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
@@ -296,6 +299,9 @@
                                 <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
                                 <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
                                 <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="Min"       Binding="{Binding MinLimit, StringFormat=F3}" Width="75"/>
+                                <DataGridTextColumn Header="Max"       Binding="{Binding MaxLimit, StringFormat=F3}" Width="75"/>
+                                <DataGridCheckBoxColumn Header="10s"   Binding="{Binding HighPrecision}" Width="45"/>
                                 <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
                                 <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
@@ -397,6 +403,9 @@
                                 <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
                                 <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
                                 <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="Min"       Binding="{Binding MinLimit, StringFormat=F3}" Width="75"/>
+                                <DataGridTextColumn Header="Max"       Binding="{Binding MaxLimit, StringFormat=F3}" Width="75"/>
+                                <DataGridCheckBoxColumn Header="10s"   Binding="{Binding HighPrecision}" Width="45"/>
                                 <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
                                 <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
