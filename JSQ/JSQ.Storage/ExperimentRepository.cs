@@ -545,6 +545,12 @@ public static class ExperimentEntityExtensions
 {
     public static Experiment ToExperiment(this ExperimentEntity entity)
     {
+        var startTime = ParseDateTime(entity.StartTime)
+                        ?? ParseDateTime(entity.CreatedAt)
+                        ?? DateTime.MinValue;
+
+        var endTime = ParseDateTime(entity.EndTime);
+
         return new Experiment
         {
             Id = entity.Id,
@@ -554,8 +560,8 @@ public static class ExperimentEntityExtensions
             Operator = entity.Operator,
             Refrigerant = entity.Refrigerant,
             State = (ExperimentState)Enum.Parse(typeof(ExperimentState), entity.State),
-            StartTime = string.IsNullOrEmpty(entity.StartTime) ? DateTime.MinValue : DateTime.Parse(entity.StartTime),
-            EndTime = string.IsNullOrEmpty(entity.EndTime) ? null : DateTime.Parse(entity.EndTime),
+            StartTime = startTime,
+            EndTime = endTime,
             PostAEnabled = entity.PostAEnabled,
             PostBEnabled = entity.PostBEnabled,
             PostCEnabled = entity.PostCEnabled,
@@ -563,5 +569,19 @@ public static class ExperimentEntityExtensions
             AggregationIntervalSec = entity.AggregationIntervalSec,
             CheckpointIntervalSec = entity.CheckpointIntervalSec
         };
+    }
+
+    private static DateTime? ParseDateTime(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        if (DateTime.TryParse(text, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt))
+            return dt;
+
+        if (DateTime.TryParse(text, out dt))
+            return dt;
+
+        return null;
     }
 }
