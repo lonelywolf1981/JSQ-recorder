@@ -558,11 +558,11 @@
             <StatusBarItem>
                 <TextBlock>
                     <Run Text="A:"/>
-                    <Run Text="{Binding PostA.StateBadge}"/>
+                    <Run Text="{Binding PostA.StateBadge, Mode=OneWay}"/>
                     <Run Text="  B:"/>
-                    <Run Text="{Binding PostB.StateBadge}"/>
+                    <Run Text="{Binding PostB.StateBadge, Mode=OneWay}"/>
                     <Run Text="  C:"/>
-                    <Run Text="{Binding PostC.StateBadge}"/>
+                    <Run Text="{Binding PostC.StateBadge, Mode=OneWay}"/>
                 </TextBlock>
             </StatusBarItem>
             <Separator/>
