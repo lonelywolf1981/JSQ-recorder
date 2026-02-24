@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using Microsoft.Win32;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
+using JSQ.Export;
 using JSQ.UI.WPF.ViewModels;
 
 namespace JSQ.UI.WPF.Views;
@@ -17,6 +20,8 @@ public partial class EventHistoryWindow : Window
     private readonly string _postId;
     private readonly string? _initialExperimentId;
     private readonly IExperimentService _service;
+    private readonly ILegacyExportService _exportService;
+    private readonly SettingsViewModel _settings;
 
     private readonly ObservableCollection<PostExperimentRecord> _experiments = new();
     private readonly ObservableCollection<ChannelEventRecord> _events = new();
@@ -31,12 +36,19 @@ public partial class EventHistoryWindow : Window
     private DateTime? _experimentStart;
     private DateTime? _experimentEnd;
 
-    public EventHistoryWindow(string postId, IExperimentService service, string? initialExperimentId = null)
+    public EventHistoryWindow(
+        string postId,
+        IExperimentService service,
+        ILegacyExportService exportService,
+        SettingsViewModel settings,
+        string? initialExperimentId = null)
     {
         InitializeComponent();
 
         _postId = postId;
         _service = service;
+        _exportService = exportService;
+        _settings = settings;
         _initialExperimentId = initialExperimentId;
 
         TitleBlock.Text = $"История экспериментов поста {_postId}";
@@ -328,6 +340,67 @@ public partial class EventHistoryWindow : Window
         await LoadExperimentsAsync(selectPreferred: false);
     }
 
+    private async void ExportSelectedExperimentButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ExperimentsGrid.SelectedItem is not PostExperimentRecord selected)
+        {
+            StatusBlock.Text = "Выберите эксперимент для экспорта";
+            return;
+        }
+
+        try
+        {
+            var exportRoot = string.IsNullOrWhiteSpace(_settings.ExportPath)
+                ? "export"
+                : _settings.ExportPath;
+
+            exportRoot = Path.GetFullPath(exportRoot);
+            Directory.CreateDirectory(exportRoot);
+
+            var dlg = new SaveFileDialog
+            {
+                Title = $"Экспорт эксперимента {selected.Name}",
+                Filter = "DBF файл (*.dbf)|*.dbf",
+                FileName = BuildDefaultExportFileName(selected),
+                InitialDirectory = exportRoot,
+                AddExtension = true,
+                DefaultExt = ".dbf",
+                OverwritePrompt = false,
+                CheckPathExists = true
+            };
+
+            if (dlg.ShowDialog(this) != true)
+            {
+                StatusBlock.Text = "Экспорт отменён";
+                return;
+            }
+
+            var targetDirectory = Path.GetDirectoryName(dlg.FileName);
+            var packageName = Path.GetFileNameWithoutExtension(dlg.FileName);
+            if (string.IsNullOrWhiteSpace(targetDirectory) || string.IsNullOrWhiteSpace(packageName))
+            {
+                StatusBlock.Text = "Некорректный путь экспорта";
+                return;
+            }
+
+            _settings.ExportPath = targetDirectory;
+
+            var result = await _exportService.ExportExperimentAsync(selected.Id, targetDirectory, packageName);
+            StatusBlock.Text = $"Экспорт: {result.PackageName}, записей: {result.RecordCount}";
+
+            MessageBox.Show(
+                $"Экспорт завершён.\nПапка: {result.PackageDirectory}",
+                "JSQ Export",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            StatusBlock.Text = $"Ошибка экспорта: {ex.Message}";
+            MessageBox.Show(ex.Message, "Ошибка экспорта", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void ResetFilterButton_Click(object sender, RoutedEventArgs e)
     {
         SearchTextBox.Text = string.Empty;
@@ -358,6 +431,21 @@ public partial class EventHistoryWindow : Window
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         await LoadExperimentsAsync(selectPreferred: true);
+    }
+
+    private static string BuildDefaultExportFileName(PostExperimentRecord selected)
+    {
+        var baseName = $"Post{selected.PostId}_{selected.StartTime:yyyyMMdd_HHmmss}_{selected.Name}";
+        if (string.IsNullOrWhiteSpace(baseName))
+            baseName = $"Post{selected.PostId}_{DateTime.Now:yyyyMMdd_HHmmss}";
+
+        foreach (var ch in Path.GetInvalidFileNameChars())
+            baseName = baseName.Replace(ch, '_');
+
+        if (baseName.Length > 80)
+            baseName = baseName.Substring(0, 80);
+
+        return baseName + ".dbf";
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();

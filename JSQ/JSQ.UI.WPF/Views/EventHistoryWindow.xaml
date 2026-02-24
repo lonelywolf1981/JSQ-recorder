@@ -31,28 +31,50 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="380"/>
-                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="380" MinWidth="260"/>
+                <ColumnDefinition Width="6"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <GroupBox Grid.Column="0" Header="Эксперименты поста" Padding="6">
-                <DataGrid x:Name="ExperimentsGrid"
-                          AutoGenerateColumns="False"
-                          CanUserAddRows="False"
-                          IsReadOnly="True"
-                          SelectionMode="Single"
-                          SelectionChanged="ExperimentsGrid_SelectionChanged"
-                          VirtualizingPanel.IsVirtualizing="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Старт" Binding="{Binding StartDisplay}" Width="140"/>
-                        <DataGridTextColumn Header="Статус" Binding="{Binding StateDisplay}" Width="85"/>
-                        <DataGridTextColumn Header="Имя" Binding="{Binding Name}" Width="180"/>
-                        <DataGridTextColumn Header="Оператор" Binding="{Binding Operator}" Width="110"/>
-                        <DataGridTextColumn Header="Part" Binding="{Binding PartNumber}" Width="90"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="💾 Экспорт выбранного"
+                                Click="ExportSelectedExperimentButton_Click"
+                                Padding="10,4" Margin="0,0,8,0"/>
+                    </StackPanel>
+
+                    <DataGrid Grid.Row="1" x:Name="ExperimentsGrid"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              SelectionChanged="ExperimentsGrid_SelectionChanged"
+                              VirtualizingPanel.IsVirtualizing="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Старт" Binding="{Binding StartDisplay}" Width="140"/>
+                            <DataGridTextColumn Header="Статус" Binding="{Binding StateDisplay}" Width="85"/>
+                            <DataGridTextColumn Header="Имя" Binding="{Binding Name}" Width="180"/>
+                            <DataGridTextColumn Header="Оператор" Binding="{Binding Operator}" Width="110"/>
+                            <DataGridTextColumn Header="Part" Binding="{Binding PartNumber}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
             </GroupBox>
+
+            <GridSplitter Grid.Column="1"
+                          Width="6"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="True"
+                          Background="#D0D0D0"/>
 
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>

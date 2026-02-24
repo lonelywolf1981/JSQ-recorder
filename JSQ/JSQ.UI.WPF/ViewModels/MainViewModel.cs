@@ -590,7 +590,7 @@ public partial class MainViewModel : ObservableObject
             ? monitor.CurrentExperiment?.Id
             : monitor.LastExperimentId;
 
-        var window = new Views.EventHistoryWindow(postId, _experimentService, initialExperimentId)
+        var window = new Views.EventHistoryWindow(postId, _experimentService, _exportService, _settings, initialExperimentId)
         {
             Owner = Application.Current.MainWindow
         };
