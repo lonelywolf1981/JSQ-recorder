@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using JSQ.Core.Models;
 
 namespace JSQ.Decode;
 
@@ -106,7 +107,7 @@ public class ChannelDecoder
                 }
 
                 // Декодируем значения каналов
-                var now = DateTime.Now;
+                var now = JsqClock.Now;
                 for (int i = 0; i < (int)count; i++)
                 {
                     int offset = 28 + i * 8;

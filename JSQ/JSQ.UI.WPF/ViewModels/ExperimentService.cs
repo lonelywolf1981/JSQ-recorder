@@ -122,7 +122,7 @@ public class ExperimentService : IExperimentService, IDisposable
                         {
                             LogReceived?.Invoke(new LogEntry
                             {
-                                Timestamp = DateTime.Now,
+                                Timestamp = JsqClock.Now,
                                 Level = "Warning",
                                 Source = "Recovery",
                                 Message = $"Эксперимент '{exp.Name}' был прерван сбоем — помечен как RECOVERED"
@@ -150,7 +150,7 @@ public class ExperimentService : IExperimentService, IDisposable
 
                 LogReceived?.Invoke(new LogEntry
                 {
-                    Timestamp = DateTime.Now,
+                    Timestamp = JsqClock.Now,
                     Level = "Info",
                     Source = "System",
                     Message = $"Подключение к {host}:{port}..."
@@ -164,7 +164,7 @@ public class ExperimentService : IExperimentService, IDisposable
 
                 LogReceived?.Invoke(new LogEntry
                 {
-                    Timestamp = DateTime.Now,
+                    Timestamp = JsqClock.Now,
                     Level = "Info",
                     Source = "System",
                     Message = $"Подключено. Получение данных от {host}:{port}."
@@ -174,7 +174,7 @@ public class ExperimentService : IExperimentService, IDisposable
             {
                 LogReceived?.Invoke(new LogEntry
                 {
-                    Timestamp = DateTime.Now,
+                    Timestamp = JsqClock.Now,
                     Level = "Warning",
                     Source = "System",
                     Message = $"Не удалось подключиться к {host}:{port}: {ex.Message}"
@@ -197,7 +197,7 @@ public class ExperimentService : IExperimentService, IDisposable
             if (string.IsNullOrEmpty(experiment.Id))
                 experiment.Id = Guid.NewGuid().ToString("N");
 
-            experiment.StartTime = DateTime.Now;
+            experiment.StartTime = JsqClock.Now;
             experiment.State = ExperimentState.Running;
             experiment.PostId = postId;
 
@@ -253,7 +253,7 @@ public class ExperimentService : IExperimentService, IDisposable
                 await _experimentRepo.CreateAsync(experiment);
                 LogReceived?.Invoke(new LogEntry
                 {
-                    Timestamp = DateTime.Now,
+                    Timestamp = JsqClock.Now,
                     Level = "Info",
                     Source = "Storage",
                     Post = postId,
@@ -264,7 +264,7 @@ public class ExperimentService : IExperimentService, IDisposable
             {
                 LogReceived?.Invoke(new LogEntry
                 {
-                    Timestamp = DateTime.Now,
+                    Timestamp = JsqClock.Now,
                     Level = "Warning",
                     Source = "Storage",
                     Post = postId,
@@ -275,7 +275,7 @@ public class ExperimentService : IExperimentService, IDisposable
 
         LogReceived?.Invoke(new LogEntry
         {
-            Timestamp = DateTime.Now,
+            Timestamp = JsqClock.Now,
             Level = "Info",
             Source = "System",
             Post = postId,
@@ -298,7 +298,7 @@ public class ExperimentService : IExperimentService, IDisposable
 
         LogReceived?.Invoke(new LogEntry
         {
-            Timestamp = DateTime.Now,
+            Timestamp = JsqClock.Now,
             Level = "Info",
             Source = "System",
             Post = postId,
@@ -321,7 +321,7 @@ public class ExperimentService : IExperimentService, IDisposable
 
         LogReceived?.Invoke(new LogEntry
         {
-            Timestamp = DateTime.Now,
+            Timestamp = JsqClock.Now,
             Level = "Info",
             Source = "System",
             Post = postId,
@@ -360,7 +360,7 @@ public class ExperimentService : IExperimentService, IDisposable
                 await _experimentRepo.FinalizeAsync(experiment.Id);
                 LogReceived?.Invoke(new LogEntry
                 {
-                    Timestamp = DateTime.Now,
+                    Timestamp = JsqClock.Now,
                     Level = "Info",
                     Source = "Storage",
                     Post = postId,
@@ -371,7 +371,7 @@ public class ExperimentService : IExperimentService, IDisposable
             {
                 LogReceived?.Invoke(new LogEntry
                 {
-                    Timestamp = DateTime.Now,
+                    Timestamp = JsqClock.Now,
                     Level = "Error",
                     Source = "Storage",
                     Post = postId,
@@ -382,7 +382,7 @@ public class ExperimentService : IExperimentService, IDisposable
 
         LogReceived?.Invoke(new LogEntry
         {
-            Timestamp = DateTime.Now,
+            Timestamp = JsqClock.Now,
             Level = "Info",
             Source = "System",
             Post = postId,
@@ -483,7 +483,7 @@ public class ExperimentService : IExperimentService, IDisposable
     {
         LogReceived?.Invoke(new LogEntry
         {
-            Timestamp = DateTime.Now,
+            Timestamp = JsqClock.Now,
             Level = status == ConnectionStatus.Error ? "Error" : "Info",
             Source = "TCP",
             Message = $"Статус подключения: {status}"
@@ -578,7 +578,7 @@ public class ExperimentService : IExperimentService, IDisposable
                     FirePostAnomaly(state.PostId, state, evt);
             }
 
-            foreach (var evt in state.AnomalyDetector.CheckTimeouts(DateTime.Now))
+            foreach (var evt in state.AnomalyDetector.CheckTimeouts(JsqClock.Now))
                 FirePostAnomaly(state.PostId, state, evt);
         }
     }
@@ -587,8 +587,8 @@ public class ExperimentService : IExperimentService, IDisposable
     {
         var checkpoint = new CheckpointData
         {
-            CheckpointTime = DateTime.Now.ToString("O"),
-            LastSampleTimestamp = DateTime.Now.ToString("O")
+            CheckpointTime = JsqClock.NowIso(),
+            LastSampleTimestamp = JsqClock.NowIso()
         };
         await _experimentRepo.SaveCheckpointAsync(state.Experiment.Id, checkpoint);
     }

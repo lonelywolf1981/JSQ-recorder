@@ -80,7 +80,7 @@ public class AggregationService : IAggregationService
     
     public IEnumerable<AggregatedValue> GetReadyAggregates()
     {
-        var now = DateTime.Now;
+        var now = JsqClock.Now;
         var ready = new List<AggregatedValue>();
         
         foreach (var kvp in _windows)
@@ -100,7 +100,7 @@ public class AggregationService : IAggregationService
         }
         
         if (ready.Count > 0)
-            _lastAggregationTime = DateTime.Now;
+            _lastAggregationTime = JsqClock.Now;
         
         return ready;
     }

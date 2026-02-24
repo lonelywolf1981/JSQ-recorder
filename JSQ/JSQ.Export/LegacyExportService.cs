@@ -339,7 +339,7 @@ public class LegacyExportService : ILegacyExportService
             });
         }
 
-        DbfWriter.Write(path, fields, rows, channels, DateTime.Now);
+        DbfWriter.Write(path, fields, rows, channels, JsqClock.Now);
     }
 
     private static void WriteDat(string path, ExperimentMeta meta)

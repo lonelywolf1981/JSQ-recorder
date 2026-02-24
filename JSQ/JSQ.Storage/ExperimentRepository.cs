@@ -132,7 +132,7 @@ public class ExperimentRepository : IExperimentRepository
                 @Id, @PostId, @Name, @PartNumber, @Operator, @Refrigerant, @State,
                 @StartTime, @PostAEnabled, @PostBEnabled, @PostCEnabled,
                 @BatchSize, @AggregationIntervalSec, @CheckpointIntervalSec,
-                datetime('now'), datetime('now')
+                @Now, @Now
             );
         ";
         
@@ -146,6 +146,7 @@ public class ExperimentRepository : IExperimentRepository
             Refrigerant = experiment.Refrigerant,
             State = experiment.State.ToString(),
             StartTime = experiment.StartTime.ToString("O"),
+            Now = JsqClock.NowIso(),
             PostAEnabled = experiment.PostAEnabled ? 1 : 0,
             PostBEnabled = experiment.PostBEnabled ? 1 : 0,
             PostCEnabled = experiment.PostCEnabled ? 1 : 0,
@@ -197,11 +198,11 @@ public class ExperimentRepository : IExperimentRepository
         
         const string sql = @"
             UPDATE experiments 
-            SET state = @State, updated_at = datetime('now')
+            SET state = @State, updated_at = @Now
             WHERE id = @Id;
         ";
         
-        await conn.ExecuteAsync(sql, new { Id = experimentId, State = state.ToString() });
+        await conn.ExecuteAsync(sql, new { Id = experimentId, State = state.ToString(), Now = JsqClock.NowIso() });
     }
     
     public async Task<Experiment?> GetByIdAsync(string experimentId, CancellationToken ct = default)
@@ -209,7 +210,26 @@ public class ExperimentRepository : IExperimentRepository
         using var conn = _dbService.GetConnection();
         
         const string sql = @"
-            SELECT * FROM experiments WHERE id = @Id;
+            SELECT
+                id AS Id,
+                post_id AS PostId,
+                name AS Name,
+                part_number AS PartNumber,
+                operator AS Operator,
+                refrigerant AS Refrigerant,
+                state AS State,
+                start_time AS StartTime,
+                end_time AS EndTime,
+                post_a_enabled AS PostAEnabled,
+                post_b_enabled AS PostBEnabled,
+                post_c_enabled AS PostCEnabled,
+                batch_size AS BatchSize,
+                aggregation_interval_sec AS AggregationIntervalSec,
+                checkpoint_interval_sec AS CheckpointIntervalSec,
+                created_at AS CreatedAt,
+                updated_at AS UpdatedAt
+            FROM experiments
+            WHERE id = @Id;
         ";
         
         var entity = await conn.QueryFirstOrDefaultAsync<ExperimentEntity>(sql, new { Id = experimentId });
@@ -222,7 +242,25 @@ public class ExperimentRepository : IExperimentRepository
         using var conn = _dbService.GetConnection();
         
         const string sql = @"
-            SELECT * FROM experiments 
+            SELECT
+                id AS Id,
+                post_id AS PostId,
+                name AS Name,
+                part_number AS PartNumber,
+                operator AS Operator,
+                refrigerant AS Refrigerant,
+                state AS State,
+                start_time AS StartTime,
+                end_time AS EndTime,
+                post_a_enabled AS PostAEnabled,
+                post_b_enabled AS PostBEnabled,
+                post_c_enabled AS PostCEnabled,
+                batch_size AS BatchSize,
+                aggregation_interval_sec AS AggregationIntervalSec,
+                checkpoint_interval_sec AS CheckpointIntervalSec,
+                created_at AS CreatedAt,
+                updated_at AS UpdatedAt
+            FROM experiments
             WHERE state IN ('Running', 'Paused') 
             ORDER BY created_at DESC 
             LIMIT 1;
@@ -248,7 +286,24 @@ public class ExperimentRepository : IExperimentRepository
             : $"%{trimmedSearch}%";
 
         const string sql = @"
-            SELECT *
+            SELECT
+                id AS Id,
+                post_id AS PostId,
+                name AS Name,
+                part_number AS PartNumber,
+                operator AS Operator,
+                refrigerant AS Refrigerant,
+                state AS State,
+                start_time AS StartTime,
+                end_time AS EndTime,
+                post_a_enabled AS PostAEnabled,
+                post_b_enabled AS PostBEnabled,
+                post_c_enabled AS PostCEnabled,
+                batch_size AS BatchSize,
+                aggregation_interval_sec AS AggregationIntervalSec,
+                checkpoint_interval_sec AS CheckpointIntervalSec,
+                created_at AS CreatedAt,
+                updated_at AS UpdatedAt
             FROM experiments
             WHERE post_id = @PostId
               AND state <> 'Idle'
@@ -282,19 +337,20 @@ public class ExperimentRepository : IExperimentRepository
         
         const string updateSql = @"
             UPDATE experiments 
-            SET state = 'Finalized', end_time = datetime('now'), updated_at = datetime('now')
+            SET state = 'Finalized', end_time = @Now, updated_at = @Now
             WHERE id = @Id;
         ";
         
-        await conn.ExecuteAsync(updateSql, new { Id = experimentId }, transaction);
+        var now = JsqClock.NowIso();
+        await conn.ExecuteAsync(updateSql, new { Id = experimentId, Now = now }, transaction);
         
         // Логируем событие
         const string eventSql = @"
-            INSERT INTO system_events (experiment_id, event_type, severity, message)
-            VALUES (@Id, 'ExperimentStop', 'Info', 'Experiment finalized');
+            INSERT INTO system_events (experiment_id, timestamp, event_type, severity, message)
+            VALUES (@Id, @Now, 'ExperimentStop', 'Info', 'Experiment finalized');
         ";
         
-        await conn.ExecuteAsync(eventSql, new { Id = experimentId }, transaction);
+        await conn.ExecuteAsync(eventSql, new { Id = experimentId, Now = now }, transaction);
         transaction.Commit();
     }
     
@@ -466,7 +522,25 @@ public class ExperimentRepository : IExperimentRepository
         using var conn = _dbService.GetConnection();
 
         const string selectSql = @"
-            SELECT * FROM experiments
+            SELECT
+                id AS Id,
+                post_id AS PostId,
+                name AS Name,
+                part_number AS PartNumber,
+                operator AS Operator,
+                refrigerant AS Refrigerant,
+                state AS State,
+                start_time AS StartTime,
+                end_time AS EndTime,
+                post_a_enabled AS PostAEnabled,
+                post_b_enabled AS PostBEnabled,
+                post_c_enabled AS PostCEnabled,
+                batch_size AS BatchSize,
+                aggregation_interval_sec AS AggregationIntervalSec,
+                checkpoint_interval_sec AS CheckpointIntervalSec,
+                created_at AS CreatedAt,
+                updated_at AS UpdatedAt
+            FROM experiments
             WHERE state IN ('Running', 'Paused')
             ORDER BY created_at ASC;
         ";
@@ -477,10 +551,10 @@ public class ExperimentRepository : IExperimentRepository
 
         const string updateSql = @"
             UPDATE experiments
-            SET state = 'Recovered', updated_at = datetime('now')
+            SET state = 'Recovered', updated_at = @Now
             WHERE state IN ('Running', 'Paused');
         ";
-        await conn.ExecuteAsync(updateSql);
+        await conn.ExecuteAsync(updateSql, new { Now = JsqClock.NowIso() });
 
         return entities.Select(e => e.ToExperiment()).ToList();
     }

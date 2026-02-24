@@ -73,7 +73,7 @@ public class AnomalyRule
 public class AnomalyEvent
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
-    public DateTime Timestamp { get; set; } = DateTime.Now;
+    public DateTime Timestamp { get; set; } = JsqClock.Now;
     public string ExperimentId { get; set; } = string.Empty;
     
     public int ChannelIndex { get; set; }

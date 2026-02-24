@@ -31,7 +31,7 @@ public class Experiment
     public ExperimentState State { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
-    public TimeSpan Duration => EndTime.HasValue ? EndTime.Value - StartTime : DateTime.Now - StartTime;
+    public TimeSpan Duration => EndTime.HasValue ? EndTime.Value - StartTime : JsqClock.Now - StartTime;
     
     // Настройки постов
     public bool PostAEnabled { get; set; } = true;

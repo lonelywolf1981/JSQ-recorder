@@ -245,10 +245,10 @@ public class TcpCaptureService : ITcpCaptureService
                 {
                     _stats.TotalBytesReceived += (ulong)bytesRead;
                     _stats.TotalPacketsReceived++;
-                    _stats.LastPacketTime = DateTime.Now;
+                    _stats.LastPacketTime = JsqClock.Now;
                     
                     // Расчет скорости
-                    var now = DateTime.Now;
+                    var now = JsqClock.Now;
                     if ((now - _lastStatsTime).TotalSeconds >= 1)
                     {
                         _stats.BytesPerSecond = _stats.TotalBytesReceived - _lastBytesCount;

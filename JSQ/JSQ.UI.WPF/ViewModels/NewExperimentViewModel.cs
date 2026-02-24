@@ -8,7 +8,7 @@ namespace JSQ.UI.WPF.ViewModels;
 public partial class NewExperimentViewModel : ObservableObject
 {
     [ObservableProperty]
-    private string _name = $"Эксперимент {DateTime.Now:yyyy-MM-dd HH:mm}";
+    private string _name = $"Эксперимент {JsqClock.Now:yyyy-MM-dd HH:mm}";
 
     [ObservableProperty]
     private string _partNumber = string.Empty;
@@ -31,7 +31,7 @@ public partial class NewExperimentViewModel : ObservableObject
         Operator = Operator,
         Refrigerant = Refrigerant,
         State = ExperimentState.Idle,
-        StartTime = DateTime.Now
+        StartTime = JsqClock.Now
     };
 
     [RelayCommand(CanExecute = nameof(CanConfirm))]

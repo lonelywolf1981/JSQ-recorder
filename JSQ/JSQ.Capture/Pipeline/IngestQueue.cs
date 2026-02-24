@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using JSQ.Core.Models;
 
 namespace JSQ.Capture.Pipeline;
 
@@ -8,7 +9,7 @@ namespace JSQ.Capture.Pipeline;
 public class PipelineItem<T>
 {
     public T Data { get; set; } = default!;
-    public DateTime Timestamp { get; set; } = DateTime.Now;
+    public DateTime Timestamp { get; set; } = JsqClock.Now;
     public int RetryCount { get; set; }
     public bool IsProcessed { get; set; }
 }

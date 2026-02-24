@@ -152,9 +152,9 @@ public class SqliteDatabaseService : IDatabaseService
             await conn.ExecuteAsync(@"
                 UPDATE experiments
                 SET post_id = @PostId,
-                    updated_at = datetime('now')
+                    updated_at = @Now
                 WHERE id = @Id;
-            ", new { Id = experimentId, PostId = postId });
+            ", new { Id = experimentId, PostId = postId, Now = JsqClock.NowIso() });
         }
     }
 

@@ -247,9 +247,9 @@ public class AnomalyDetector : IAnomalyDetector
         if (_activeAnomalies.TryGetValue(eventId, out var evt))
         {
             evt.IsAcknowledged = true;
-            evt.AcknowledgedAt = DateTime.Now;
+            evt.AcknowledgedAt = JsqClock.Now;
             evt.AcknowledgedBy = user;
-            evt.EndTime = DateTime.Now;
+            evt.EndTime = JsqClock.Now;
         }
     }
     
@@ -283,7 +283,7 @@ public class AnomalyDetector : IAnomalyDetector
             Threshold = threshold,
             Delta = delta,
             Message = message,
-            Timestamp = DateTime.Now
+            Timestamp = JsqClock.Now
         };
         
         _activeAnomalies[evt.Id] = evt;
@@ -299,7 +299,7 @@ public class AnomalyDetector : IAnomalyDetector
         
         foreach (var evt in toClear)
         {
-            evt.EndTime = DateTime.Now;
+            evt.EndTime = JsqClock.Now;
         }
     }
     
