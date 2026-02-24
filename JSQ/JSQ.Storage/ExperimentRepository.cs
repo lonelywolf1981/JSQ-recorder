@@ -159,8 +159,10 @@ public class ExperimentRepository : IExperimentRepository
             );
         ";
         
-        // Генерируем конфигурацию для всех 134 каналов
-        var channels = GenerateDefaultChannelConfig();
+        // Каноническая конфигурация — строго из ChannelRegistry
+        var channels = ChannelRegistry.All.Values
+            .OrderBy(ch => ch.Index)
+            .ToList();
         
         foreach (var ch in channels)
         {
@@ -176,65 +178,6 @@ public class ExperimentRepository : IExperimentRepository
                 Enabled = ch.Enabled ? 1 : 0
             });
         }
-    }
-    
-    private List<ChannelDefinition> GenerateDefaultChannelConfig()
-    {
-        // Генерируем дефолтную конфигурацию каналов
-        var channels = new List<ChannelDefinition>();
-        
-        // Пост A (0-45)
-        for (int i = 0; i <= 45; i++)
-        {
-            channels.Add(new ChannelDefinition
-            {
-                Index = i,
-                Name = i switch
-                {
-                    0 => "A-Pc",
-                    1 => "A-Pe",
-                    <= 32 => $"A-T{i}",
-                    <= 36 => i switch { 33 => "A-I", 34 => "A-F", 35 => "A-V", 36 => "A-W" },
-                    _ => $"A-{i}"
-                },
-                Group = ChannelGroup.PostA,
-                Type = i switch
-                {
-                    0 or 1 => ChannelType.Pressure,
-                    <= 32 => ChannelType.Temperature,
-                    _ => ChannelType.Electrical
-                },
-                Enabled = true
-            });
-        }
-        
-        // Пост B (46-91)
-        for (int i = 46; i <= 91; i++)
-        {
-            channels.Add(new ChannelDefinition
-            {
-                Index = i,
-                Name = $"B-T{i - 46}",
-                Group = ChannelGroup.PostB,
-                Type = ChannelType.Temperature,
-                Enabled = true
-            });
-        }
-        
-        // Пост C (92-137)
-        for (int i = 92; i <= 137; i++)
-        {
-            channels.Add(new ChannelDefinition
-            {
-                Index = i,
-                Name = $"C-T{i - 92}",
-                Group = ChannelGroup.PostC,
-                Type = ChannelType.Temperature,
-                Enabled = true
-            });
-        }
-        
-        return channels;
     }
     
     public async Task UpdateStateAsync(string experimentId, ExperimentState state, CancellationToken ct = default)
