@@ -16,7 +16,7 @@ namespace JSQ.UI.WPF.ViewModels;
 /// </summary>
 public partial class MainViewModel : ObservableObject
 {
-    private readonly IExperimentService _experimentService;
+    private readonly ExperimentService _experimentService;
     private readonly SettingsViewModel _settings;
     private readonly DispatcherTimer _staleChannelTimer;
 
@@ -77,7 +77,7 @@ public partial class MainViewModel : ObservableObject
     public int PostBCount => PostBChannels.Count;
     public int PostCCount => PostCChannels.Count;
 
-    public MainViewModel(IExperimentService experimentService, SettingsViewModel settings)
+    public MainViewModel(ExperimentService experimentService, SettingsViewModel settings)
     {
         _experimentService = experimentService;
         _settings = settings;

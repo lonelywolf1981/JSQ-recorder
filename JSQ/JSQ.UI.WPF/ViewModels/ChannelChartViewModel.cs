@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using JSQ.Core.Models;
@@ -16,11 +17,13 @@ namespace JSQ.UI.WPF.ViewModels;
 /// </summary>
 public partial class ChannelChartViewModel : ObservableObject
 {
-    private readonly IExperimentService _service;
-    private readonly List<(DateTime time, double value)> _rawPoints = new(10000);
+    private readonly ExperimentService _service;
+    private readonly List<(DateTime time, double value)> _rawPoints = new(100000);
     private readonly object _pointsLock = new();
     private readonly DispatcherTimer _refreshTimer;
     private readonly LineSeries _series;
+    private DateTime _experimentStartTime;
+    private bool _historyLoaded;
 
     public int ChannelIndex { get; }
     public string ChannelName { get; }
@@ -37,12 +40,13 @@ public partial class ChannelChartViewModel : ObservableObject
     [ObservableProperty]
     private string _currentValueText = "—";
 
-    public ChannelChartViewModel(ChannelStatus channel, IExperimentService service)
+    public ChannelChartViewModel(ChannelStatus channel, ExperimentService service)
     {
         ChannelIndex = channel.ChannelIndex;
         ChannelName = channel.ChannelName;
         Unit = channel.Unit ?? string.Empty;
         _service = service;
+        _experimentStartTime = DateTime.Now; // По умолчанию - текущее время
 
         double? minLimit = null;
         double? maxLimit = null;
@@ -66,8 +70,11 @@ public partial class ChannelChartViewModel : ObservableObject
         _service.ChannelValueReceived += OnChannelValue;
 
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-        _refreshTimer.Tick += (_, _) => RefreshChart();
+        _refreshTimer.Tick += async (_, _) => await RefreshChartAsync();
         _refreshTimer.Start();
+        
+        // Загружаем историю при открытии
+        _ = LoadHistoryAsync();
     }
 
     private PlotModel BuildPlotModel(double? minLimit, double? maxLimit)
@@ -119,7 +126,44 @@ public partial class ChannelChartViewModel : ObservableObject
         return model;
     }
 
-    partial void OnSelectedWindowChanged(string value) => RefreshChart();
+    partial void OnSelectedWindowChanged(string value) => _ = RefreshChartAsync();
+    
+    /// <summary>
+    /// Загрузить исторические данные из БД
+    /// </summary>
+    private async Task LoadHistoryAsync()
+    {
+        if (_historyLoaded) return;
+        
+        // Получаем время старта эксперимента
+        var endTime = DateTime.Now;
+        var startTime = _experimentStartTime;
+        
+        // Если эксперимент еще не запущен, показываем только новые данные
+        if (startTime > endTime)
+            startTime = endTime.AddMinutes(-5);
+        
+        var history = await _service.LoadChannelHistoryAsync(ChannelIndex, startTime, endTime);
+        
+        lock (_pointsLock)
+        {
+            _rawPoints.Clear();
+            _rawPoints.AddRange(history);
+            _historyLoaded = true;
+        }
+        
+        await RefreshChartAsync();
+    }
+    
+    /// <summary>
+    /// Установить время старта эксперимента (вызывается извне)
+    /// </summary>
+    public void SetExperimentStartTime(DateTime startTime)
+    {
+        _experimentStartTime = startTime;
+        _historyLoaded = false;
+        _ = LoadHistoryAsync();
+    }
 
     private void OnChannelValue(int index, double value)
     {
@@ -128,13 +172,13 @@ public partial class ChannelChartViewModel : ObservableObject
         lock (_pointsLock)
         {
             _rawPoints.Add((DateTime.Now, value));
-            // Ограничиваем буфер — 20 000 точек (~5 часов при 1 Гц)
-            if (_rawPoints.Count > 20000)
-                _rawPoints.RemoveRange(0, 1000);
+            // Ограничиваем буфер — 100 000 точек (~24 часа при 1 Гц)
+            if (_rawPoints.Count > 100000)
+                _rawPoints.RemoveRange(0, 10000);
         }
     }
 
-    private void RefreshChart()
+    private async Task RefreshChartAsync()
     {
         (DateTime time, double value)[] snapshot;
         lock (_pointsLock)
@@ -144,11 +188,9 @@ public partial class ChannelChartViewModel : ObservableObject
         }
 
         var span = GetWindowSpan();
-        var cutoff = span.HasValue ? DateTime.Now - span.Value : DateTime.MinValue;
+        var cutoff = span.HasValue ? DateTime.Now - span.Value : _experimentStartTime;
 
-        var filtered = span.HasValue
-            ? snapshot.Where(p => p.time >= cutoff).ToArray()
-            : snapshot;
+        var filtered = snapshot.Where(p => p.time >= cutoff).ToArray();
 
         _series.Points.Clear();
         foreach (var (time, value) in filtered)
@@ -161,6 +203,7 @@ public partial class ChannelChartViewModel : ObservableObject
         }
 
         PlotModel.InvalidatePlot(true);
+        await Task.CompletedTask; // Для совместимости с async
     }
 
     private TimeSpan? GetWindowSpan() => SelectedWindow switch

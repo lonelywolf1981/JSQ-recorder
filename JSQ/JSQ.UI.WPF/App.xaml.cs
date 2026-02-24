@@ -68,12 +68,14 @@ public partial class App : Application
         services.AddSingleton<IExperimentRepository>(sp =>
             new ExperimentRepository(sp.GetRequiredService<IDatabaseService>()));
 
-        // Services
-        services.AddSingleton<IExperimentService>(sp =>
+        // Services - регистрируем и интерфейс, и конкретный класс
+        services.AddSingleton<ExperimentService>(sp =>
             new ExperimentService(
                 sp.GetRequiredService<IDatabaseService>(),
                 sp.GetRequiredService<IBatchWriter>(),
                 sp.GetRequiredService<IExperimentRepository>()));
+        services.AddSingleton<IExperimentService>(sp =>
+            sp.GetRequiredService<ExperimentService>());
 
         // Views
         services.AddSingleton<MainWindow>();

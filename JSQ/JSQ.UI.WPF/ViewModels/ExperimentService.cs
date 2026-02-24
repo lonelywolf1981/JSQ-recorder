@@ -36,6 +36,9 @@ public class ExperimentService : IExperimentService, IDisposable
     public event Action<LogEntry>? LogReceived;
     public event Action<int, double>? ChannelValueReceived;
     public event Action<string, AnomalyEvent>? PostAnomalyDetected;
+    
+    // Для загрузки истории
+    public event Func<int, DateTime, DateTime, Task<List<(DateTime time, double value)>>>? LoadChannelHistoryRequested;
 
     private CancellationTokenSource? _healthUpdateCts;
 
@@ -511,5 +514,34 @@ public class ExperimentService : IExperimentService, IDisposable
         _batchWriter.Dispose();
         _dbService.Dispose();
         _healthUpdateCts?.Dispose();
+    }
+    
+    // ─── Загрузка истории для графиков ──────────────────────────────────────
+    
+    /// <summary>
+    /// Загрузить исторические данные канала из БД
+    /// </summary>
+    public async Task<List<(DateTime time, double value)>> LoadChannelHistoryAsync(
+        int channelIndex, DateTime startTime, DateTime endTime)
+    {
+        var active = GetActiveExperiment();
+        if (active == null)
+            return new List<(DateTime time, double value)>();
+        
+        return await _experimentRepo.GetChannelHistoryAsync(
+            active.Id, channelIndex, startTime, endTime);
+    }
+    
+    private Experiment? GetActiveExperiment()
+    {
+        lock (_stateLock)
+        {
+            foreach (var state in _postStates.Values)
+            {
+                if (state.IsRunning)
+                    return state.Experiment;
+            }
+        }
+        return null;
     }
 }

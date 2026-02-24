@@ -1,3 +1,4 @@
+using System.Linq;
 using Dapper;
 using JSQ.Core.Models;
 using JSQ.Storage.Entities;
@@ -43,6 +44,12 @@ public interface IExperimentRepository
     /// Получить последний чекпоинт
     /// </summary>
     Task<CheckpointData?> GetLastCheckpointAsync(string experimentId, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Получить исторические данные канала за период
+    /// </summary>
+    Task<List<(DateTime time, double value)>> GetChannelHistoryAsync(
+        string experimentId, int channelIndex, DateTime startTime, DateTime endTime, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -293,13 +300,39 @@ public class ExperimentRepository : IExperimentRepository
         using var conn = _dbService.GetConnection();
         
         const string sql = @"
-            SELECT * FROM checkpoints 
-            WHERE experiment_id = @Id 
-            ORDER BY checkpoint_time DESC 
+            SELECT * FROM checkpoints
+            WHERE experiment_id = @Id
+            ORDER BY checkpoint_time DESC
             LIMIT 1;
         ";
-        
+
         return await conn.QueryFirstOrDefaultAsync<CheckpointData>(sql, new { Id = experimentId });
+    }
+    
+    public async Task<List<(DateTime time, double value)>> GetChannelHistoryAsync(
+        string experimentId, int channelIndex, DateTime startTime, DateTime endTime, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+        
+        const string sql = @"
+            SELECT timestamp, value 
+            FROM raw_samples 
+            WHERE experiment_id = @ExperimentId 
+              AND channel_index = @ChannelIndex
+              AND timestamp >= @StartTime 
+              AND timestamp <= @EndTime
+            ORDER BY timestamp ASC;
+        ";
+        
+        var results = await conn.QueryAsync<(string timestamp, double value)>(sql, new
+        {
+            ExperimentId = experimentId,
+            ChannelIndex = channelIndex,
+            StartTime = startTime.ToString("O"),
+            EndTime = endTime.ToString("O")
+        });
+        
+        return results.Select(r => (DateTime.Parse(r.timestamp), r.value)).ToList();
     }
 }
 
