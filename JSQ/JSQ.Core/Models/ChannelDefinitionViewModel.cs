@@ -49,6 +49,18 @@ public partial class ChannelDefinitionViewModel : ObservableObject
     [ObservableProperty]
     private bool _isActive;
 
+    /// <summary>true если канал занят другим постом и недоступен для выбора.</summary>
+    [ObservableProperty]
+    private bool _isTakenByOtherPost;
+
+    /// <summary>Идентификатор поста, которому занят канал: "A", "B", "C".</summary>
+    [ObservableProperty]
+    private string _takenByPost = string.Empty;
+
+    /// <summary>Можно ли выбрать канал (false если занят другим постом).</summary>
+    [ObservableProperty]
+    private bool _canSelect = true;
+
     public ChannelDefinitionViewModel() { }
     
     public ChannelDefinitionViewModel(ChannelDefinition channel)

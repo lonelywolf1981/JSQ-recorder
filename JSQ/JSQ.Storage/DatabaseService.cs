@@ -207,6 +207,18 @@ public class SqliteDatabaseService : IDatabaseService
                 queue_state_json TEXT,
                 statistics_json TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS channel_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                experiment_id TEXT NOT NULL,
+                channel_index INTEGER NOT NULL,
+                channel_name TEXT NOT NULL,
+                channel_group TEXT,
+                channel_type TEXT,
+                min_limit REAL,
+                max_limit REAL,
+                enabled INTEGER DEFAULT 1
+            );
         ";
         
         await conn.ExecuteAsync(sql);

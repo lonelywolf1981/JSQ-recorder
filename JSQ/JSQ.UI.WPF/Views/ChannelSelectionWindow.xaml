@@ -5,10 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:JSQ.UI.WPF.ViewModels"
         mc:Ignorable="d"
-        Title="Выбор каналов" Height="700" Width="1000"
+        Title="{Binding WindowTitle}" Height="700" Width="1050"
         WindowStartupLocation="CenterOwner"
         d:DataContext="{d:DesignInstance vm:ChannelSelectionViewModel}">
-    
+
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -16,16 +16,15 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        
+
         <!-- Фильтры -->
         <GroupBox Grid.Row="0" Header="Фильтры" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                
+
                 <Grid Grid.Column="0" Margin="5">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -34,44 +33,45 @@
                     <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                     <TextBox Grid.Column="1" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
                 </Grid>
-                
+
                 <Grid Grid.Column="1" Margin="5">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="Группа:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableGroups}" 
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableGroups}"
                               SelectedItem="{Binding SelectedGroup}"/>
-                </Grid>
-                
-                <Grid Grid.Column="2" Margin="5">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Пост:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding AvailablePosts}" 
-                              SelectedItem="{Binding SelectedPost}"/>
                 </Grid>
             </Grid>
         </GroupBox>
-        
+
         <!-- Таблица каналов -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="250"/>
+                <ColumnDefinition Width="240"/>
             </Grid.ColumnDefinitions>
-            
+
             <!-- Список каналов -->
             <GroupBox Grid.Column="0" Header="Каналы">
-                <DataGrid ItemsSource="{Binding FilteredChannels}" 
+                <DataGrid ItemsSource="{Binding FilteredChannels}"
                           AutoGenerateColumns="False"
                           CanUserAddRows="False"
                           IsReadOnly="False"
                           SelectionMode="Extended">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsTakenByOtherPost}" Value="True">
+                                    <Setter Property="Background" Value="#EEEEEE"/>
+                                    <Setter Property="Foreground" Value="#9E9E9E"/>
+                                    <Setter Property="FontStyle" Value="Italic"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
                     <DataGrid.Columns>
                         <!-- Индикатор активности -->
                         <DataGridTemplateColumn Header="●" Width="28">
@@ -93,29 +93,50 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <!-- Чекбокс выбора -->
+                        <!-- Чекбокс выбора (заблокирован для занятых каналов) -->
                         <DataGridTemplateColumn Header="✓" Width="40" SortMemberPath="IsSelected">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <CheckBox IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEnabled="{Binding CanSelect}"
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTextColumn Header="Канал" Binding="{Binding Name}" Width="80"/>
+                        <DataGridTextColumn Header="Канал"   Binding="{Binding Name}"                       Width="80"/>
                         <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="80"/>
-                        <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="50"/>
-                        <DataGridTextColumn Header="Описание" Binding="{Binding Description}" Width="*"/>
-                        <DataGridTextColumn Header="Min" Binding="{Binding MinLimit}" Width="60"/>
-                        <DataGridTextColumn Header="Max" Binding="{Binding MaxLimit}" Width="60"/>
-                        <DataGridTextColumn Header="Пост" Binding="{Binding PostFix}" Width="45"/>
+                        <DataGridTextColumn Header="Ед."      Binding="{Binding Unit}"                       Width="50"/>
+                        <DataGridTextColumn Header="Описание" Binding="{Binding Description}"                Width="*"/>
+                        <DataGridTextColumn Header="Min"      Binding="{Binding MinLimit}"                   Width="55"/>
+                        <DataGridTextColumn Header="Max"      Binding="{Binding MaxLimit}"                   Width="55"/>
+
+                        <!-- Показываем какой пост занял канал -->
+                        <DataGridTemplateColumn Header="Занят" Width="55" SortMemberPath="TakenByPost">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock HorizontalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsTakenByOtherPost}" Value="True">
+                                                        <Setter Property="Text" Value="{Binding TakenByPost}"/>
+                                                        <Setter Property="Foreground" Value="#F44336"/>
+                                                        <Setter Property="FontWeight" Value="Bold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
             </GroupBox>
-            
+
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"/>
-            
+
             <!-- Панель действий -->
             <GroupBox Grid.Column="2" Header="Действия" Margin="5,0,0,0">
                 <StackPanel Margin="5">
@@ -129,47 +150,39 @@
                         <Run Text="Показано: "/>
                         <Run Text="{Binding FilteredChannels.Count, Mode=OneWay}"/>
                     </TextBlock>
-                    
-                    <Button Content="Выбрать все" Command="{Binding SelectAllCommand}" 
-                            Margin="0,5" Padding="5"/>
-                    <Button Content="Снять выделение" Command="{Binding DeselectAllCommand}" 
-                            Margin="0,5" Padding="5"/>
-                    <Button Content="Инвертировать" Command="{Binding InvertSelectionCommand}" 
-                            Margin="0,5" Padding="5"/>
-                    
+
+                    <Button Content="Выбрать все"       Command="{Binding SelectAllCommand}"       Margin="0,5" Padding="5"/>
+                    <Button Content="Снять выделение"   Command="{Binding DeselectAllCommand}"     Margin="0,5" Padding="5"/>
+                    <Button Content="Инвертировать"     Command="{Binding InvertSelectionCommand}" Margin="0,5" Padding="5"/>
+
                     <Separator Margin="0,10"/>
-                    
+
                     <TextBlock Text="Массовая настройка:" FontWeight="Bold" Margin="0,10,0,5"/>
-                    <TextBox Text="{Binding BulkMinLimit}" Margin="0,2" 
-                             VerticalContentAlignment="Center">
+                    <TextBox Text="{Binding BulkMinLimit}" Margin="0,2" VerticalContentAlignment="Center">
                         <TextBox.ToolTip>Минимальный лимит</TextBox.ToolTip>
                     </TextBox>
-                    <TextBox Text="{Binding BulkMaxLimit}" Margin="0,2" 
-                             VerticalContentAlignment="Center">
+                    <TextBox Text="{Binding BulkMaxLimit}" Margin="0,2" VerticalContentAlignment="Center">
                         <TextBox.ToolTip>Максимальный лимит</TextBox.ToolTip>
                     </TextBox>
-                    <Button Content="Применить к выбранным" 
-                            Command="{Binding ApplyBulkLimitsCommand}" 
+                    <Button Content="Применить к выбранным"
+                            Command="{Binding ApplyBulkLimitsCommand}"
                             Margin="0,5" Padding="5"/>
-                    
+
                     <Separator Margin="0,10"/>
-                    
+
                     <TextBlock Text="Пресеты:" FontWeight="Bold" Margin="0,10,0,5"/>
-                    <ComboBox ItemsSource="{Binding AvailablePresets}" 
+                    <ComboBox ItemsSource="{Binding AvailablePresets}"
                               DisplayMemberPath="Name"
                               SelectedValuePath="Name"
                               SelectedValue="{Binding SelectedPresetName}"
                               Margin="0,2"/>
-                    <Button Content="Загрузить пресет" Command="{Binding LoadPresetCommand}" 
-                            Margin="0,5" Padding="5"/>
-                    <Button Content="Сохранить пресет" Command="{Binding SavePresetCommand}" 
-                            Margin="0,5" Padding="5"/>
-                    <Button Content="Удалить пресет" Command="{Binding DeletePresetCommand}" 
-                            Margin="0,5" Padding="5"/>
+                    <Button Content="Загрузить пресет" Command="{Binding LoadPresetCommand}"  Margin="0,5" Padding="5"/>
+                    <Button Content="Сохранить пресет" Command="{Binding SavePresetCommand}"  Margin="0,5" Padding="5"/>
+                    <Button Content="Удалить пресет"   Command="{Binding DeletePresetCommand}" Margin="0,5" Padding="5"/>
                 </StackPanel>
             </GroupBox>
         </Grid>
-        
+
         <!-- Кнопки -->
         <Grid Grid.Row="2" Margin="0,10">
             <Grid.ColumnDefinitions>
@@ -182,17 +195,17 @@
                      VerticalContentAlignment="Center" Margin="0,0,10,0">
                 <TextBox.ToolTip>Введите имя для сохранения пресета</TextBox.ToolTip>
             </TextBox>
-            
-            <Button Grid.Column="1" Content="Сохранить выбор" 
+
+            <Button Grid.Column="1" Content="Назначить каналы"
                     Command="{Binding SaveSelectionCommand}"
                     Padding="20,5" Margin="5,0"/>
-            <Button Grid.Column="2" Content="Закрыть" 
+            <Button Grid.Column="2" Content="Закрыть"
                     Click="CloseButton_Click"
                     Padding="20,5" Margin="5,0"/>
         </Grid>
-        
+
         <!-- Строка состояния -->
-        <StatusBar Grid.Row="3" Margin="0,10,0,0">
+        <StatusBar Grid.Row="3" Margin="0,5,0,0">
             <StatusBarItem>
                 <TextBlock>
                     <Run Text="Всего каналов: "/>

@@ -8,12 +8,30 @@
         Title="JSQ Experiment Controller" Height="800" Width="1400"
         WindowState="Maximized"
         d:DataContext="{d:DesignInstance vm:MainViewModel}">
-    
+
     <Window.Resources>
-        <!-- Конвертер статуса в цвет -->
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- Стиль строки DataGrid для каналов -->
+        <Style x:Key="ChannelRowStyle" TargetType="DataGridRow">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Status}" Value="OK">
+                    <Setter Property="Background" Value="#F1F8F1"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Warning">
+                    <Setter Property="Background" Value="#FFF9C4"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Alarm">
+                    <Setter Property="Background" Value="#FFCDD2"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="NoData">
+                    <Setter Property="Background" Value="#F5F5F5"/>
+                    <Setter Property="Foreground" Value="#9E9E9E"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
-    
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -22,7 +40,7 @@
             <RowDefinition Height="200"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        
+
         <!-- Меню -->
         <Menu Grid.Row="0">
             <MenuItem Header="_Файл">
@@ -40,142 +58,255 @@
             <MenuItem Header="_Настройки" Command="{Binding OpenSettingsCommand}"/>
             <MenuItem Header="_Помощь"/>
         </Menu>
-        
+
         <!-- Панель инструментов -->
         <ToolBarTray Grid.Row="1">
             <ToolBar>
                 <Button Content="Новый" Command="{Binding NewExperimentCommand}" Padding="10,5"/>
                 <Separator/>
-                <Button Content="▶ Запуск" Command="{Binding StartExperimentCommand}" 
+                <Button Content="▶ Запуск" Command="{Binding StartExperimentCommand}"
                         FontWeight="Bold" Foreground="Green" Padding="10,5"/>
                 <Button Content="⏸ Пауза" Command="{Binding PauseExperimentCommand}" Padding="10,5"/>
-                <Button Content="⏹ Останов" Command="{Binding StopExperimentCommand}" 
+                <Button Content="⏹ Останов" Command="{Binding StopExperimentCommand}"
                         FontWeight="Bold" Foreground="Red" Padding="10,5"/>
                 <Separator/>
                 <Button Content="⚙ Настройки" Command="{Binding OpenSettingsCommand}" Padding="10,5"/>
-                <Button Content="📋 Каналы" Command="{Binding OpenChannelsCommand}" Padding="10,5"/>
                 <Button Content="💾 Экспорт" Command="{Binding ExportDataCommand}" Padding="10,5"/>
             </ToolBar>
         </ToolBarTray>
-        
+
         <!-- Основная область -->
         <Grid Grid.Row="2" Margin="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="350"/>
+                <ColumnDefinition Width="330"/>
             </Grid.ColumnDefinitions>
-            
-            <!-- Матрица каналов -->
-            <GroupBox Grid.Column="0" Header="Каналы" Margin="0,0,5,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    
-                    <!-- Фильтры -->
-                    <Grid Grid.Row="0" Margin="5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                        <TextBox Grid.Column="1"
-                                 Text="{Binding ChannelSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 Margin="0,0,10,0"/>
+            <!-- ===== Вкладки постов ===== -->
+            <TabControl Grid.Column="0" Margin="0,0,5,0">
 
-                        <TextBlock Grid.Column="2" Text="Группа:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                        <ComboBox Grid.Column="3"
-                                  SelectedValue="{Binding ChannelGroupFilter}">
-                            <ComboBoxItem Content="Все"/>
-                            <ComboBoxItem Content="A"/>
-                            <ComboBoxItem Content="B"/>
-                            <ComboBoxItem Content="C"/>
-                        </ComboBox>
+                <!-- Пост A -->
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Пост A"/>
+                            <TextBlock Text=" (" Foreground="Gray"/>
+                            <TextBlock Text="{Binding PostACount}" Foreground="Gray"/>
+                            <TextBlock Text=")" Foreground="Gray"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <Grid Margin="3">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="0,3,0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding PostASearch, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Grid.Column="2" Content="📋 Каналы"
+                                    Command="{Binding OpenChannelsForPostCommand}"
+                                    CommandParameter="A"
+                                    Margin="5,0,0,0" Padding="8,3"/>
+                        </Grid>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding PostAFiltered}"
+                                  AutoGenerateColumns="False" CanUserAddRows="False"
+                                  IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
+                                  RowStyle="{StaticResource ChannelRowStyle}">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="" Width="20">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="#BDBDBD"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Status}" Value="OK">
+                                                                <Setter Property="Fill" Value="#4CAF50"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Warning">
+                                                                <Setter Property="Fill" Value="#FF9800"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Alarm">
+                                                                <Setter Property="Fill" Value="#F44336"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
+                                <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
+                                <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
+                                <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </Grid>
+                </TabItem>
 
-                    <!-- Список каналов -->
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding FilteredChannels}"
-                              AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              IsReadOnly="True"
-                              VirtualizingPanel.IsVirtualizing="True">
-                        <DataGrid.Columns>
-                            <!-- Индикатор активности -->
-                            <DataGridTemplateColumn Header="" Width="20">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Ellipse.Style>
-                                                <Style TargetType="Ellipse">
-                                                    <Setter Property="Fill" Value="#BDBDBD"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Status}" Value="OK">
-                                                            <Setter Property="Fill" Value="#4CAF50"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="Warning">
-                                                            <Setter Property="Fill" Value="#FF9800"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Status}" Value="Alarm">
-                                                            <Setter Property="Fill" Value="#F44336"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Ellipse.Style>
-                                        </Ellipse>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                <!-- Пост B -->
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Пост B"/>
+                            <TextBlock Text=" (" Foreground="Gray"/>
+                            <TextBlock Text="{Binding PostBCount}" Foreground="Gray"/>
+                            <TextBlock Text=")" Foreground="Gray"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <Grid Margin="3">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="0,3,0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding PostBSearch, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Grid.Column="2" Content="📋 Каналы"
+                                    Command="{Binding OpenChannelsForPostCommand}"
+                                    CommandParameter="B"
+                                    Margin="5,0,0,0" Padding="8,3"/>
+                        </Grid>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding PostBFiltered}"
+                                  AutoGenerateColumns="False" CanUserAddRows="False"
+                                  IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
+                                  RowStyle="{StaticResource ChannelRowStyle}">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="" Width="20">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="#BDBDBD"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Status}" Value="OK">
+                                                                <Setter Property="Fill" Value="#4CAF50"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Warning">
+                                                                <Setter Property="Fill" Value="#FF9800"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Alarm">
+                                                                <Setter Property="Fill" Value="#F44336"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
+                                <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
+                                <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
+                                <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
 
-                            <DataGridTextColumn Header="Канал"  Binding="{Binding ChannelName}"  Width="90"/>
-                            <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
-                            <DataGridTextColumn Header="Ед."    Binding="{Binding Unit}"          Width="50"/>
-                            <DataGridTextColumn Header="Статус" Binding="{Binding Status}"        Width="70"/>
-                            <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
-                        </DataGrid.Columns>
+                <!-- Пост C -->
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Пост C"/>
+                            <TextBlock Text=" (" Foreground="Gray"/>
+                            <TextBlock Text="{Binding PostCCount}" Foreground="Gray"/>
+                            <TextBlock Text=")" Foreground="Gray"/>
+                        </StackPanel>
+                    </TabItem.Header>
+                    <Grid Margin="3">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="0,3,0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding PostCSearch, UpdateSourceTrigger=PropertyChanged}"/>
+                            <Button Grid.Column="2" Content="📋 Каналы"
+                                    Command="{Binding OpenChannelsForPostCommand}"
+                                    CommandParameter="C"
+                                    Margin="5,0,0,0" Padding="8,3"/>
+                        </Grid>
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding PostCFiltered}"
+                                  AutoGenerateColumns="False" CanUserAddRows="False"
+                                  IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
+                                  RowStyle="{StaticResource ChannelRowStyle}">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="" Width="20">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Ellipse Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="#BDBDBD"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Status}" Value="OK">
+                                                                <Setter Property="Fill" Value="#4CAF50"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Warning">
+                                                                <Setter Property="Fill" Value="#FF9800"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Alarm">
+                                                                <Setter Property="Fill" Value="#F44336"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
+                                <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
+                                <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
+                                <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </TabItem>
 
-                        <DataGrid.RowStyle>
-                            <Style TargetType="DataGridRow">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Status}" Value="OK">
-                                        <Setter Property="Background" Value="#F1F8F1"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="Warning">
-                                        <Setter Property="Background" Value="#FFF9C4"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="Alarm">
-                                        <Setter Property="Background" Value="#FFCDD2"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="NoData">
-                                        <Setter Property="Background" Value="#F5F5F5"/>
-                                        <Setter Property="Foreground" Value="#9E9E9E"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGrid.RowStyle>
-                    </DataGrid>
-                </Grid>
-            </GroupBox>
-            
-            <!-- Панель информации -->
+            </TabControl>
+
+            <!-- Панель информации (правая) -->
             <Grid Grid.Column="1" Margin="5,0,0,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                
+
                 <!-- Информация об эксперименте -->
                 <GroupBox Grid.Row="0" Header="Эксперимент" Margin="0,0,0,5">
                     <StackPanel Margin="5">
-                        <TextBlock Text="{Binding CurrentExperiment.Name, TargetNullValue='Нет активного эксперимента'}" 
+                        <TextBlock Text="{Binding CurrentExperiment.Name, TargetNullValue='Нет активного эксперимента'}"
                                    FontWeight="Bold" TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding CurrentExperiment.PartNumber, StringFormat='Part: {0}'}" 
+                        <TextBlock Text="{Binding CurrentExperiment.PartNumber, StringFormat='Part: {0}'}"
                                    Margin="0,5,0,0"/>
-                        <TextBlock Text="{Binding CurrentExperiment.Operator, StringFormat='Оператор: {0}'}" 
+                        <TextBlock Text="{Binding CurrentExperiment.Operator, StringFormat='Оператор: {0}'}"
                                    Margin="0,2,0,0"/>
                         <TextBlock Margin="0,10,0,5">
                             <Run Text="Длительность: "/>
@@ -183,19 +314,15 @@
                         </TextBlock>
                     </StackPanel>
                 </GroupBox>
-                
-                <!-- Панель здоровья -->
+
+                <!-- Состояние системы -->
                 <GroupBox Grid.Row="1" Header="Здоровье системы" Margin="0,0,0,5">
                     <StackPanel Margin="5">
                         <Border BorderBrush="Gray" BorderThickness="1" Padding="10" CornerRadius="3">
                             <StackPanel>
-                                <TextBlock FontSize="24" FontWeight="Bold"
-                                           HorizontalAlignment="Center"
-                                           Text="{Binding SystemHealth.OverallStatus}">
-                                </TextBlock>
-
-                                <Separator Margin="0,10"/>
-                                
+                                <TextBlock FontSize="22" FontWeight="Bold" HorizontalAlignment="Center"
+                                           Text="{Binding SystemHealth.OverallStatus}"/>
+                                <Separator Margin="0,8"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition/>
@@ -207,54 +334,48 @@
                                         <RowDefinition/>
                                         <RowDefinition/>
                                     </Grid.RowDefinitions>
-                                    
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Всего каналов:"/>
-                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemHealth.TotalChannels}" 
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Каналов:"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemHealth.TotalChannels}"
                                                HorizontalAlignment="Right" FontWeight="Bold"/>
-                                    
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="OK:" Foreground="Green"/>
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SystemHealth.ChannelsOK}" 
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SystemHealth.ChannelsOK}"
                                                HorizontalAlignment="Right" Foreground="Green"/>
-                                    
                                     <TextBlock Grid.Row="2" Grid.Column="0" Text="Warning:" Foreground="Orange"/>
-                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SystemHealth.ChannelsWarning}" 
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SystemHealth.ChannelsWarning}"
                                                HorizontalAlignment="Right" Foreground="Orange"/>
-                                    
                                     <TextBlock Grid.Row="3" Grid.Column="0" Text="Alarm:" Foreground="Red"/>
-                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SystemHealth.ChannelsAlarm}" 
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SystemHealth.ChannelsAlarm}"
                                                HorizontalAlignment="Right" Foreground="Red"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
-                        
-                        <TextBlock Margin="0,10,0,0" TextWrapping="Wrap">
+                        <TextBlock Margin="0,8,0,0">
                             <Run Text="Samples/s: "/>
                             <Run Text="{Binding SystemHealth.SamplesPerSecond}"/>
                         </TextBlock>
-                        <TextBlock Margin="0,5,0,0" TextWrapping="Wrap">
-                            <Run Text="Активные аномалии: "/>
+                        <TextBlock Margin="0,4,0,0">
+                            <Run Text="Аномалии: "/>
                             <Run Text="{Binding SystemHealth.ActiveAnomalies}" FontWeight="Bold"/>
                         </TextBlock>
                     </StackPanel>
                 </GroupBox>
-                
+
                 <!-- Статус -->
                 <GroupBox Grid.Row="2" Header="Статус">
                     <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="5"/>
                 </GroupBox>
             </Grid>
         </Grid>
-        
-        <!-- Лог событий -->
+
+        <!-- Лог событий (общий для всех постов) -->
         <GroupBox Grid.Row="3" Header="Лог событий" Margin="5">
-            <DataGrid ItemsSource="{Binding LogEntries}" 
-                      AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      IsReadOnly="True">
+            <DataGrid ItemsSource="{Binding LogEntries}"
+                      AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Время" Binding="{Binding Timestamp, StringFormat=HH:mm:ss.fff}" Width="100"/>
-                    <DataGridTextColumn Header="Уровень" Binding="{Binding Level}" Width="80"/>
-                    <DataGridTextColumn Header="Источник" Binding="{Binding Source}" Width="100"/>
+                    <DataGridTextColumn Header="Время"    Binding="{Binding Timestamp, StringFormat=HH:mm:ss.fff}" Width="100"/>
+                    <DataGridTextColumn Header="Уровень"  Binding="{Binding Level}"   Width="70"/>
+                    <DataGridTextColumn Header="Пост"     Binding="{Binding Post}"     Width="50"/>
+                    <DataGridTextColumn Header="Источник" Binding="{Binding Source}"   Width="90"/>
                     <DataGridTextColumn Header="Сообщение" Binding="{Binding Message}" Width="*"/>
                 </DataGrid.Columns>
                 <DataGrid.RowStyle>
@@ -271,7 +392,7 @@
                 </DataGrid.RowStyle>
             </DataGrid>
         </GroupBox>
-        
+
         <!-- Строка состояния -->
         <StatusBar Grid.Row="4">
             <StatusBarItem>
