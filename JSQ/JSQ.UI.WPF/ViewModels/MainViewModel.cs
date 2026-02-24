@@ -18,7 +18,6 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly IExperimentService _experimentService;
     private readonly SettingsViewModel _settings;
-    private readonly DispatcherTimer _durationTimer;
     private readonly DispatcherTimer _staleChannelTimer;
 
     // Единый lookup: channelIndex → ChannelStatus (O(1) обновления)
@@ -27,10 +26,13 @@ public partial class MainViewModel : ObservableObject
     // Назначение каналов на посты: channelIndex → "A"/"B"/"C"
     private readonly Dictionary<int, string> _channelPostAssignment = new();
 
-    // Каналы с активными аномалиями (статус не сбрасывается)
-    private readonly HashSet<int> _anomalousChannels = new();
+    // --- Состояние постов (мониторинг) ---
 
-    // --- Состояние постов ---
+    public PostMonitorViewModel PostA { get; } = new("A");
+    public PostMonitorViewModel PostB { get; } = new("B");
+    public PostMonitorViewModel PostC { get; } = new("C");
+
+    // --- Каналы по постам ---
 
     [ObservableProperty]
     private ObservableCollection<ChannelStatus> _postAChannels = new();
@@ -59,18 +61,12 @@ public partial class MainViewModel : ObservableObject
     private SystemHealth _systemHealth = new();
 
     [ObservableProperty]
-    private Experiment? _currentExperiment;
-
-    [ObservableProperty]
     private ObservableCollection<LogEntry> _logEntries = new();
 
     [ObservableProperty]
     private string _statusMessage = "Готов";
 
-    [ObservableProperty]
-    private bool _isExperimentRunning;
-
-    // Количество каналов на каждом посту (для отображения в заголовке вкладки)
+    // Количество каналов на каждом посту (для заголовка вкладки)
     public int PostACount => PostAChannels.Count;
     public int PostBCount => PostBChannels.Count;
     public int PostCCount => PostCChannels.Count;
@@ -83,21 +79,16 @@ public partial class MainViewModel : ObservableObject
         _experimentService.HealthUpdated += OnHealthUpdated;
         _experimentService.LogReceived += OnLogReceived;
         _experimentService.ChannelValueReceived += OnChannelValueReceived;
-        _experimentService.AnomalyDetected += OnAnomalyDetected;
-
-        _durationTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _durationTimer.Tick += (_, _) => OnPropertyChanged(nameof(CurrentExperiment));
+        _experimentService.PostAnomalyDetected += OnPostAnomalyDetected;
 
         _staleChannelTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _staleChannelTimer.Tick += (_, _) => MarkStaleChannels();
         _staleChannelTimer.Start();
 
-        // Отслеживаем изменения коллекций для обновления счётчиков
         PostAChannels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(PostACount));
         PostBChannels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(PostBCount));
         PostCChannels.CollectionChanged += (_, _) => OnPropertyChanged(nameof(PostCCount));
 
-        // По умолчанию — каналы назначены по группам (A→постA, B→постB, C→постC)
         InitializeDefaultChannelAssignment();
 
         _experimentService.Configure(
@@ -133,7 +124,7 @@ public partial class MainViewModel : ObservableObject
                 _ => null
             };
 
-            if (postId == null) continue; // Common/System — не назначаем по умолчанию
+            if (postId == null) continue;
 
             var ch = new ChannelStatus
             {
@@ -201,11 +192,18 @@ public partial class MainViewModel : ObservableObject
         _ => string.Empty
     };
 
+    private PostMonitorViewModel GetPostMonitor(string postId) => postId switch
+    {
+        "A" => PostA,
+        "B" => PostB,
+        "C" => PostC,
+        _ => PostA
+    };
+
     // --- Назначение каналов на пост ---
 
     private void AssignChannelsToPost(string postId, IList<int> newIndices)
     {
-        // Убираем старые каналы этого поста
         var toRemove = _channelPostAssignment
             .Where(kvp => kvp.Value == postId)
             .Select(kvp => kvp.Key)
@@ -219,7 +217,6 @@ public partial class MainViewModel : ObservableObject
 
         GetPostChannels(postId).Clear();
 
-        // Добавляем новые
         foreach (var idx in newIndices)
         {
             var ch = new ChannelStatus
@@ -262,11 +259,12 @@ public partial class MainViewModel : ObservableObject
         window.ShowDialog();
     }
 
-    // --- Управление экспериментом ---
-
     [RelayCommand]
-    private void NewExperiment()
+    private void StartPost(string postId)
     {
+        var monitor = GetPostMonitor(postId);
+        if (!monitor.CanStart) return;
+
         var viewModel = new NewExperimentViewModel();
         var window = new NewExperimentWindow(viewModel)
         {
@@ -274,51 +272,71 @@ public partial class MainViewModel : ObservableObject
         };
         window.ShowDialog();
 
-        if (viewModel.Confirmed)
-        {
-            CurrentExperiment = viewModel.BuildExperiment();
-            StatusMessage = $"Эксперимент '{CurrentExperiment.Name}' создан. Нажмите Запуск.";
-        }
-    }
+        if (!viewModel.Confirmed) return;
 
-    [RelayCommand]
-    private void StartExperiment()
-    {
-        if (CurrentExperiment == null)
+        var experiment = viewModel.BuildExperiment();
+        var channelIndices = _channelPostAssignment
+            .Where(kvp => kvp.Value == postId)
+            .Select(kvp => kvp.Key)
+            .ToList();
+
+        if (channelIndices.Count == 0)
         {
-            NewExperiment();
-            if (CurrentExperiment == null) return;
+            StatusMessage = $"Пост {postId}: не назначены каналы для записи";
+            return;
         }
 
-        _experimentService.Configure(
-            _settings.TransmitterHost,
-            _settings.TransmitterPort,
-            _settings.ConnectionTimeoutMs);
+        _experimentService.StartPost(postId, experiment, channelIndices);
 
-        _experimentService.StartExperiment(CurrentExperiment);
-        _anomalousChannels.Clear();
+        monitor.CurrentExperiment = experiment;
+        monitor.State = ExperimentState.Running;
+        monitor.AnomalyCount = 0;
 
-        IsExperimentRunning = true;
-        StatusMessage = $"Запись активна: '{CurrentExperiment.Name}' ({_settings.TransmitterHost}:{_settings.TransmitterPort})";
-        _durationTimer.Start();
+        StatusMessage = $"Пост {postId}: запись '{experiment.Name}' активна ({channelIndices.Count} каналов)";
     }
 
     [RelayCommand]
-    private void PauseExperiment()
+    private void PausePost(string postId)
     {
-        _experimentService.PauseExperiment();
-        StatusMessage = "Эксперимент приостановлен";
+        var monitor = GetPostMonitor(postId);
+        if (!monitor.CanPause) return;
+
+        _experimentService.PausePost(postId);
+        monitor.State = ExperimentState.Paused;
+        StatusMessage = $"Пост {postId}: запись приостановлена";
     }
 
     [RelayCommand]
-    private void StopExperiment()
+    private void ResumePost(string postId)
     {
-        _experimentService.StopExperiment();
-        _anomalousChannels.Clear();
-        IsExperimentRunning = false;
-        StatusMessage = "Эксперимент остановлен";
-        _durationTimer.Stop();
+        var monitor = GetPostMonitor(postId);
+        if (!monitor.IsPaused) return;
+
+        _experimentService.ResumePost(postId);
+        monitor.State = ExperimentState.Running;
+        StatusMessage = $"Пост {postId}: запись возобновлена";
     }
+
+    [RelayCommand]
+    private void StopPost(string postId)
+    {
+        var monitor = GetPostMonitor(postId);
+        if (!monitor.CanStop) return;
+
+        _experimentService.StopPost(postId);
+        monitor.State = ExperimentState.Idle;
+        monitor.CurrentExperiment = null;
+        StatusMessage = $"Пост {postId}: запись остановлена";
+    }
+
+    [RelayCommand]
+    private void ExportPost(string postId)
+    {
+        // TODO: экспорт в DBF для конкретного поста
+        StatusMessage = $"Пост {postId}: экспорт...";
+    }
+
+    // --- Прочие команды ---
 
     [RelayCommand]
     private void OpenSettings()
@@ -328,12 +346,6 @@ public partial class MainViewModel : ObservableObject
             Owner = Application.Current.MainWindow
         };
         window.ShowDialog();
-    }
-
-    [RelayCommand]
-    private void ExportData()
-    {
-        // TODO: экспорт в DBF
     }
 
     // --- Обработчики событий от сервиса ---
@@ -348,30 +360,30 @@ public partial class MainViewModel : ObservableObject
             ch.CurrentValue = double.IsNaN(value) ? (double?)null : value;
             ch.LastUpdateTime = DateTime.Now;
 
+            var monitor = GetPostMonitor(ch.Post);
             if (double.IsNaN(value))
                 ch.Status = HealthStatus.NoData;
-            else if (!_anomalousChannels.Contains(index))
+            else if (monitor.State == ExperimentState.Running)
                 ch.Status = HealthStatus.OK;
         });
     }
 
-    private void OnAnomalyDetected(AnomalyEvent evt)
+    private void OnPostAnomalyDetected(string postId, AnomalyEvent evt)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            _anomalousChannels.Add(evt.ChannelIndex);
+            var monitor = GetPostMonitor(postId);
+            monitor.AnomalyCount++;
 
             if (_channelMap.TryGetValue(evt.ChannelIndex, out var ch))
                 ch.Status = evt.Severity == "Critical" ? HealthStatus.Alarm : HealthStatus.Warning;
-
-            var post = _channelPostAssignment.TryGetValue(evt.ChannelIndex, out var p) ? p : "?";
 
             LogEntries.Insert(0, new LogEntry
             {
                 Timestamp = evt.Timestamp,
                 Level = evt.Severity == "Critical" ? "Error" : "Warning",
                 Source = evt.ChannelName,
-                Post = post,
+                Post = postId,
                 Message = evt.Message
             });
 
@@ -396,7 +408,8 @@ public partial class MainViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(() =>
         {
             SystemHealth = health;
-            if (!IsExperimentRunning)
+            bool anyRunning = PostA.IsRunning || PostB.IsRunning || PostC.IsRunning;
+            if (!anyRunning)
             {
                 StatusMessage = health.OverallStatus switch
                 {
@@ -444,8 +457,8 @@ public interface IExperimentService
     /// <summary>Канал index получил новое значение value (double.NaN = нет данных).</summary>
     event Action<int, double>? ChannelValueReceived;
 
-    /// <summary>Обнаружена аномалия на одном из каналов.</summary>
-    event Action<AnomalyEvent>? AnomalyDetected;
+    /// <summary>Обнаружена аномалия на канале поста postId.</summary>
+    event Action<string, AnomalyEvent>? PostAnomalyDetected;
 
     /// <summary>Задать параметры подключения.</summary>
     void Configure(string host, int port, int timeoutMs);
@@ -453,10 +466,11 @@ public interface IExperimentService
     /// <summary>Подключиться к передатчику и начать приём данных (без создания эксперимента).</summary>
     void BeginMonitoring();
 
-    void StartExperiment(Experiment experiment);
-    void PauseExperiment();
-    void ResumeExperiment();
-    void StopExperiment();
+    void StartPost(string postId, Experiment experiment, IReadOnlyList<int> channelIndices);
+    void PausePost(string postId);
+    void ResumePost(string postId);
+    void StopPost(string postId);
 
+    ExperimentState GetPostState(string postId);
     SystemHealth GetCurrentHealth();
 }

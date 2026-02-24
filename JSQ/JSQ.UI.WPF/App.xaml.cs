@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using JSQ.UI.WPF.ViewModels;
@@ -87,14 +88,15 @@ public class ExperimentServiceStub : IExperimentService
     public event Action<SystemHealth> HealthUpdated = delegate { };
     public event Action<LogEntry> LogReceived = delegate { };
     public event Action<int, double>? ChannelValueReceived;
-    public event Action<AnomalyEvent>? AnomalyDetected;
+    public event Action<string, AnomalyEvent>? PostAnomalyDetected;
 
     public SystemHealth GetCurrentHealth() => new SystemHealth();
+    public ExperimentState GetPostState(string postId) => ExperimentState.Idle;
 
     public void Configure(string host, int port, int timeoutMs) { }
     public void BeginMonitoring() { }
-    public void StartExperiment(Experiment experiment) { }
-    public void PauseExperiment() { }
-    public void ResumeExperiment() { }
-    public void StopExperiment() { }
+    public void StartPost(string postId, Experiment experiment, IReadOnlyList<int> channelIndices) { }
+    public void PausePost(string postId) { }
+    public void ResumePost(string postId) { }
+    public void StopPost(string postId) { }
 }

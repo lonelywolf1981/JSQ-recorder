@@ -1,4 +1,4 @@
-<Window x:Class="JSQ.UI.WPF.MainWindow"
+﻿<Window x:Class="JSQ.UI.WPF.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -12,7 +12,7 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
-        <!-- Стиль строки DataGrid для каналов -->
+        <!-- РЎС‚РёР»СЊ СЃС‚СЂРѕРєРё DataGrid РґР»СЏ РєР°РЅР°Р»РѕРІ -->
         <Style x:Key="ChannelRowStyle" TargetType="DataGridRow">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Status}" Value="OK">
@@ -37,59 +37,47 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="200"/>
+            <RowDefinition Height="180"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Меню -->
+        <!-- РњРµРЅСЋ -->
         <Menu Grid.Row="0">
-            <MenuItem Header="_Файл">
-                <MenuItem Header="_Новый эксперимент" Command="{Binding NewExperimentCommand}"/>
+            <MenuItem Header="_Р¤Р°Р№Р»">
                 <Separator/>
-                <MenuItem Header="Э_кспорт" Command="{Binding ExportDataCommand}"/>
-                <Separator/>
-                <MenuItem Header="Вы_ход"/>
+                <MenuItem Header="Р’С‹_С…РѕРґ"/>
             </MenuItem>
-            <MenuItem Header="_Эксперимент">
-                <MenuItem Header="_Запуск" Command="{Binding StartExperimentCommand}"/>
-                <MenuItem Header="_Пауза" Command="{Binding PauseExperimentCommand}"/>
-                <MenuItem Header="_Останов" Command="{Binding StopExperimentCommand}"/>
-            </MenuItem>
-            <MenuItem Header="_Настройки" Command="{Binding OpenSettingsCommand}"/>
-            <MenuItem Header="_Помощь"/>
+            <MenuItem Header="_РќР°СЃС‚СЂРѕР№РєРё" Command="{Binding OpenSettingsCommand}"/>
+            <MenuItem Header="_РџРѕРјРѕС‰СЊ"/>
         </Menu>
 
-        <!-- Панель инструментов -->
+        <!-- РџР°РЅРµР»СЊ РёРЅСЃС‚СЂСѓРјРµРЅС‚РѕРІ -->
         <ToolBarTray Grid.Row="1">
             <ToolBar>
-                <Button Content="Новый" Command="{Binding NewExperimentCommand}" Padding="10,5"/>
-                <Separator/>
-                <Button Content="▶ Запуск" Command="{Binding StartExperimentCommand}"
-                        FontWeight="Bold" Foreground="Green" Padding="10,5"/>
-                <Button Content="⏸ Пауза" Command="{Binding PauseExperimentCommand}" Padding="10,5"/>
-                <Button Content="⏹ Останов" Command="{Binding StopExperimentCommand}"
-                        FontWeight="Bold" Foreground="Red" Padding="10,5"/>
-                <Separator/>
-                <Button Content="⚙ Настройки" Command="{Binding OpenSettingsCommand}" Padding="10,5"/>
-                <Button Content="💾 Экспорт" Command="{Binding ExportDataCommand}" Padding="10,5"/>
+                <Button Content="вљ™ РќР°СЃС‚СЂРѕР№РєРё" Command="{Binding OpenSettingsCommand}" Padding="10,5"/>
             </ToolBar>
         </ToolBarTray>
 
-        <!-- Основная область -->
+        <!-- РћСЃРЅРѕРІРЅР°СЏ РѕР±Р»Р°СЃС‚СЊ -->
         <Grid Grid.Row="2" Margin="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="330"/>
+                <ColumnDefinition Width="340"/>
             </Grid.ColumnDefinitions>
 
-            <!-- ===== Вкладки постов ===== -->
+            <!-- ===== Р’РєР»Р°РґРєРё РїРѕСЃС‚РѕРІ ===== -->
             <TabControl Grid.Column="0" Margin="0,0,5,0">
 
-                <!-- Пост A -->
+                <!-- РџРѕСЃС‚ A -->
                 <TabItem>
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Пост A"/>
+                            <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="{Binding PostA.StateBrush.Color}"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <TextBlock Text="РџРѕСЃС‚ A"/>
                             <TextBlock Text=" (" Foreground="Gray"/>
                             <TextBlock Text="{Binding PostACount}" Foreground="Gray"/>
                             <TextBlock Text=")" Foreground="Gray"/>
@@ -98,23 +86,82 @@
                     <Grid Margin="3">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0" Margin="0,3,0,3">
+
+                        <!-- РџР°РЅРµР»СЊ СѓРїСЂР°РІР»РµРЅРёСЏ РїРѕСЃС‚РѕРј A -->
+                        <Border Grid.Row="0" Margin="0,0,0,4" Padding="6,4"
+                                Background="#F5F5F5" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- РРЅРґРёРєР°С‚РѕСЂ СЃРѕСЃС‚РѕСЏРЅРёСЏ -->
+                                <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="{Binding PostA.StateBrush.Color}"/>
+                                    </Border.Background>
+                                    <TextBlock Text="{Binding PostA.StateBadge}"
+                                               Foreground="White" FontWeight="Bold" FontSize="11"/>
+                                </Border>
+
+                                <!-- РРјСЏ СЌРєСЃРїРµСЂРёРјРµРЅС‚Р° -->
+                                <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                           Text="{Binding PostA.CurrentExperiment.Name, TargetNullValue='вЂ”'}"
+                                           FontStyle="Italic" Foreground="Gray" Margin="0,0,8,0"/>
+
+                                <!-- РђРЅРѕРјР°Р»РёРё -->
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                           Text="{Binding PostA.AnomalyBadge}"
+                                           Foreground="#E53935" FontWeight="Bold"
+                                           Visibility="{Binding PostA.HasAnomalies, Converter={StaticResource BoolToVis}}"/>
+
+                                <!-- РљРЅРѕРїРєРё СѓРїСЂР°РІР»РµРЅРёСЏ -->
+                                <Button Grid.Column="3" Content="в–¶ Р—Р°РїСѓСЃРє"
+                                        Command="{Binding StartPostCommand}" CommandParameter="A"
+                                        IsEnabled="{Binding PostA.CanStart}"
+                                        Foreground="Green" FontWeight="Bold"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="4" Content="вЏё РџР°СѓР·Р°"
+                                        Command="{Binding PausePostCommand}" CommandParameter="A"
+                                        IsEnabled="{Binding PostA.CanPause}"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="5" Content="в–¶ Р’РѕР·РѕР±РЅРѕРІРёС‚СЊ"
+                                        Command="{Binding ResumePostCommand}" CommandParameter="A"
+                                        IsEnabled="{Binding PostA.IsPaused}"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="6" Content="вЏ№ РЎС‚РѕРї"
+                                        Command="{Binding StopPostCommand}" CommandParameter="A"
+                                        IsEnabled="{Binding PostA.CanStop}"
+                                        Foreground="Red" FontWeight="Bold"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="7" Content="рџ“‹ РљР°РЅР°Р»С‹"
+                                        Command="{Binding OpenChannelsForPostCommand}" CommandParameter="A"
+                                        Margin="8,0,0,0" Padding="8,3"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- РџРѕРёСЃРє -->
+                        <Grid Grid.Row="1" Margin="0,0,0,3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Grid.Column="0" Text="РџРѕРёСЃРє:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <TextBox Grid.Column="1"
                                      Text="{Binding PostASearch, UpdateSourceTrigger=PropertyChanged}"/>
-                            <Button Grid.Column="2" Content="📋 Каналы"
-                                    Command="{Binding OpenChannelsForPostCommand}"
-                                    CommandParameter="A"
-                                    Margin="5,0,0,0" Padding="8,3"/>
                         </Grid>
-                        <DataGrid Grid.Row="1" ItemsSource="{Binding PostAFiltered}"
+
+                        <DataGrid Grid.Row="2" ItemsSource="{Binding PostAFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
                                   RowStyle="{StaticResource ChannelRowStyle}">
@@ -143,21 +190,26 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
-                                <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
-                                <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
-                                <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
-                                <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
+                                <DataGridTextColumn Header="РљР°РЅР°Р»"    Binding="{Binding ChannelName}"  Width="90"/>
+                                <DataGridTextColumn Header="Р—РЅР°С‡РµРЅРёРµ"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
+                                <DataGridTextColumn Header="Р•Рґ."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="РЎС‚Р°С‚СѓСЃ"    Binding="{Binding Status}"        Width="70"/>
+                                <DataGridTextColumn Header="РћР±РЅРѕРІР»РµРЅРѕ" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
                 </TabItem>
 
-                <!-- Пост B -->
+                <!-- РџРѕСЃС‚ B -->
                 <TabItem>
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Пост B"/>
+                            <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="{Binding PostB.StateBrush.Color}"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <TextBlock Text="РџРѕСЃС‚ B"/>
                             <TextBlock Text=" (" Foreground="Gray"/>
                             <TextBlock Text="{Binding PostBCount}" Foreground="Gray"/>
                             <TextBlock Text=")" Foreground="Gray"/>
@@ -166,23 +218,72 @@
                     <Grid Margin="3">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0" Margin="0,3,0,3">
+
+                        <Border Grid.Row="0" Margin="0,0,0,4" Padding="6,4"
+                                Background="#F5F5F5" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="{Binding PostB.StateBrush.Color}"/>
+                                    </Border.Background>
+                                    <TextBlock Text="{Binding PostB.StateBadge}"
+                                               Foreground="White" FontWeight="Bold" FontSize="11"/>
+                                </Border>
+                                <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                           Text="{Binding PostB.CurrentExperiment.Name, TargetNullValue='вЂ”'}"
+                                           FontStyle="Italic" Foreground="Gray" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                           Text="{Binding PostB.AnomalyBadge}"
+                                           Foreground="#E53935" FontWeight="Bold"
+                                           Visibility="{Binding PostB.HasAnomalies, Converter={StaticResource BoolToVis}}"/>
+                                <Button Grid.Column="3" Content="в–¶ Р—Р°РїСѓСЃРє"
+                                        Command="{Binding StartPostCommand}" CommandParameter="B"
+                                        IsEnabled="{Binding PostB.CanStart}"
+                                        Foreground="Green" FontWeight="Bold"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="4" Content="вЏё РџР°СѓР·Р°"
+                                        Command="{Binding PausePostCommand}" CommandParameter="B"
+                                        IsEnabled="{Binding PostB.CanPause}"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="5" Content="в–¶ Р’РѕР·РѕР±РЅРѕРІРёС‚СЊ"
+                                        Command="{Binding ResumePostCommand}" CommandParameter="B"
+                                        IsEnabled="{Binding PostB.IsPaused}"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="6" Content="вЏ№ РЎС‚РѕРї"
+                                        Command="{Binding StopPostCommand}" CommandParameter="B"
+                                        IsEnabled="{Binding PostB.CanStop}"
+                                        Foreground="Red" FontWeight="Bold"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="7" Content="рџ“‹ РљР°РЅР°Р»С‹"
+                                        Command="{Binding OpenChannelsForPostCommand}" CommandParameter="B"
+                                        Margin="8,0,0,0" Padding="8,3"/>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="1" Margin="0,0,0,3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Grid.Column="0" Text="РџРѕРёСЃРє:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <TextBox Grid.Column="1"
                                      Text="{Binding PostBSearch, UpdateSourceTrigger=PropertyChanged}"/>
-                            <Button Grid.Column="2" Content="📋 Каналы"
-                                    Command="{Binding OpenChannelsForPostCommand}"
-                                    CommandParameter="B"
-                                    Margin="5,0,0,0" Padding="8,3"/>
                         </Grid>
-                        <DataGrid Grid.Row="1" ItemsSource="{Binding PostBFiltered}"
+
+                        <DataGrid Grid.Row="2" ItemsSource="{Binding PostBFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
                                   RowStyle="{StaticResource ChannelRowStyle}">
@@ -211,21 +312,26 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
-                                <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
-                                <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
-                                <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
-                                <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
+                                <DataGridTextColumn Header="РљР°РЅР°Р»"    Binding="{Binding ChannelName}"  Width="90"/>
+                                <DataGridTextColumn Header="Р—РЅР°С‡РµРЅРёРµ"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
+                                <DataGridTextColumn Header="Р•Рґ."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="РЎС‚Р°С‚СѓСЃ"    Binding="{Binding Status}"        Width="70"/>
+                                <DataGridTextColumn Header="РћР±РЅРѕРІР»РµРЅРѕ" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
                 </TabItem>
 
-                <!-- Пост C -->
+                <!-- РџРѕСЃС‚ C -->
                 <TabItem>
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Пост C"/>
+                            <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="{Binding PostC.StateBrush.Color}"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <TextBlock Text="РџРѕСЃС‚ C"/>
                             <TextBlock Text=" (" Foreground="Gray"/>
                             <TextBlock Text="{Binding PostCCount}" Foreground="Gray"/>
                             <TextBlock Text=")" Foreground="Gray"/>
@@ -234,23 +340,72 @@
                     <Grid Margin="3">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0" Margin="0,3,0,3">
+
+                        <Border Grid.Row="0" Margin="0,0,0,4" Padding="6,4"
+                                Background="#F5F5F5" BorderBrush="#DDD" BorderThickness="1" CornerRadius="3">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Padding="8,3" CornerRadius="3" Margin="0,0,8,0">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="{Binding PostC.StateBrush.Color}"/>
+                                    </Border.Background>
+                                    <TextBlock Text="{Binding PostC.StateBadge}"
+                                               Foreground="White" FontWeight="Bold" FontSize="11"/>
+                                </Border>
+                                <TextBlock Grid.Column="1" VerticalAlignment="Center"
+                                           Text="{Binding PostC.CurrentExperiment.Name, TargetNullValue='вЂ”'}"
+                                           FontStyle="Italic" Foreground="Gray" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                           Text="{Binding PostC.AnomalyBadge}"
+                                           Foreground="#E53935" FontWeight="Bold"
+                                           Visibility="{Binding PostC.HasAnomalies, Converter={StaticResource BoolToVis}}"/>
+                                <Button Grid.Column="3" Content="в–¶ Р—Р°РїСѓСЃРє"
+                                        Command="{Binding StartPostCommand}" CommandParameter="C"
+                                        IsEnabled="{Binding PostC.CanStart}"
+                                        Foreground="Green" FontWeight="Bold"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="4" Content="вЏё РџР°СѓР·Р°"
+                                        Command="{Binding PausePostCommand}" CommandParameter="C"
+                                        IsEnabled="{Binding PostC.CanPause}"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="5" Content="в–¶ Р’РѕР·РѕР±РЅРѕРІРёС‚СЊ"
+                                        Command="{Binding ResumePostCommand}" CommandParameter="C"
+                                        IsEnabled="{Binding PostC.IsPaused}"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="6" Content="вЏ№ РЎС‚РѕРї"
+                                        Command="{Binding StopPostCommand}" CommandParameter="C"
+                                        IsEnabled="{Binding PostC.CanStop}"
+                                        Foreground="Red" FontWeight="Bold"
+                                        Margin="4,0,0,0" Padding="8,3"/>
+                                <Button Grid.Column="7" Content="рџ“‹ РљР°РЅР°Р»С‹"
+                                        Command="{Binding OpenChannelsForPostCommand}" CommandParameter="C"
+                                        Margin="8,0,0,0" Padding="8,3"/>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="1" Margin="0,0,0,3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Поиск:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Grid.Column="0" Text="РџРѕРёСЃРє:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <TextBox Grid.Column="1"
                                      Text="{Binding PostCSearch, UpdateSourceTrigger=PropertyChanged}"/>
-                            <Button Grid.Column="2" Content="📋 Каналы"
-                                    Command="{Binding OpenChannelsForPostCommand}"
-                                    CommandParameter="C"
-                                    Margin="5,0,0,0" Padding="8,3"/>
                         </Grid>
-                        <DataGrid Grid.Row="1" ItemsSource="{Binding PostCFiltered}"
+
+                        <DataGrid Grid.Row="2" ItemsSource="{Binding PostCFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False"
                                   IsReadOnly="True" VirtualizingPanel.IsVirtualizing="True"
                                   RowStyle="{StaticResource ChannelRowStyle}">
@@ -279,11 +434,11 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Канал"    Binding="{Binding ChannelName}"  Width="90"/>
-                                <DataGridTextColumn Header="Значение"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
-                                <DataGridTextColumn Header="Ед."       Binding="{Binding Unit}"          Width="50"/>
-                                <DataGridTextColumn Header="Статус"    Binding="{Binding Status}"        Width="70"/>
-                                <DataGridTextColumn Header="Обновлено" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
+                                <DataGridTextColumn Header="РљР°РЅР°Р»"    Binding="{Binding ChannelName}"  Width="90"/>
+                                <DataGridTextColumn Header="Р—РЅР°С‡РµРЅРёРµ"  Binding="{Binding CurrentValue, StringFormat=F3}" Width="90"/>
+                                <DataGridTextColumn Header="Р•Рґ."       Binding="{Binding Unit}"          Width="50"/>
+                                <DataGridTextColumn Header="РЎС‚Р°С‚СѓСЃ"    Binding="{Binding Status}"        Width="70"/>
+                                <DataGridTextColumn Header="РћР±РЅРѕРІР»РµРЅРѕ" Binding="{Binding LastUpdateTime, StringFormat=HH:mm:ss}" Width="90"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
@@ -291,7 +446,7 @@
 
             </TabControl>
 
-            <!-- Панель информации (правая) -->
+            <!-- РџР°РЅРµР»СЊ РёРЅС„РѕСЂРјР°С†РёРё (РїСЂР°РІР°СЏ) -->
             <Grid Grid.Column="1" Margin="5,0,0,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -299,24 +454,69 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- Информация об эксперименте -->
-                <GroupBox Grid.Row="0" Header="Эксперимент" Margin="0,0,0,5">
-                    <StackPanel Margin="5">
-                        <TextBlock Text="{Binding CurrentExperiment.Name, TargetNullValue='Нет активного эксперимента'}"
-                                   FontWeight="Bold" TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding CurrentExperiment.PartNumber, StringFormat='Part: {0}'}"
-                                   Margin="0,5,0,0"/>
-                        <TextBlock Text="{Binding CurrentExperiment.Operator, StringFormat='Оператор: {0}'}"
-                                   Margin="0,2,0,0"/>
-                        <TextBlock Margin="0,10,0,5">
-                            <Run Text="Длительность: "/>
-                            <Run Text="{Binding CurrentExperiment.Duration, StringFormat=hh\\:mm\\:ss, Mode=OneWay}"/>
-                        </TextBlock>
-                    </StackPanel>
+                <!-- РЎРѕСЃС‚РѕСЏРЅРёРµ РїРѕСЃС‚РѕРІ -->
+                <GroupBox Grid.Row="0" Header="РЎРѕСЃС‚РѕСЏРЅРёРµ РїРѕСЃС‚РѕРІ" Margin="0,0,0,5">
+                    <Grid Margin="5">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- РџРѕСЃС‚ A -->
+                        <Border Grid.Row="0" Grid.Column="0" Width="8" Height="8" CornerRadius="4" Margin="0,0,6,0" VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding PostA.StateBrush.Color}"/>
+                            </Border.Background>
+                        </Border>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Vertical" Margin="0,2">
+                            <TextBlock FontWeight="Bold" Text="РџРѕСЃС‚ A"/>
+                            <TextBlock Text="{Binding PostA.CurrentExperiment.Name, TargetNullValue='РЎРІРѕР±РѕРґРµРЅ'}"
+                                       Foreground="Gray" FontSize="11"/>
+                        </StackPanel>
+                        <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center"
+                                   Text="{Binding PostA.AnomalyBadge}" Foreground="#E53935"
+                                   FontWeight="Bold" FontSize="11"/>
+
+                        <!-- РџРѕСЃС‚ B -->
+                        <Border Grid.Row="1" Grid.Column="0" Width="8" Height="8" CornerRadius="4" Margin="0,0,6,0" VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding PostB.StateBrush.Color}"/>
+                            </Border.Background>
+                        </Border>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Vertical" Margin="0,2">
+                            <TextBlock FontWeight="Bold" Text="РџРѕСЃС‚ B"/>
+                            <TextBlock Text="{Binding PostB.CurrentExperiment.Name, TargetNullValue='РЎРІРѕР±РѕРґРµРЅ'}"
+                                       Foreground="Gray" FontSize="11"/>
+                        </StackPanel>
+                        <TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center"
+                                   Text="{Binding PostB.AnomalyBadge}" Foreground="#E53935"
+                                   FontWeight="Bold" FontSize="11"/>
+
+                        <!-- РџРѕСЃС‚ C -->
+                        <Border Grid.Row="2" Grid.Column="0" Width="8" Height="8" CornerRadius="4" Margin="0,0,6,0" VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding PostC.StateBrush.Color}"/>
+                            </Border.Background>
+                        </Border>
+                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Vertical" Margin="0,2">
+                            <TextBlock FontWeight="Bold" Text="РџРѕСЃС‚ C"/>
+                            <TextBlock Text="{Binding PostC.CurrentExperiment.Name, TargetNullValue='РЎРІРѕР±РѕРґРµРЅ'}"
+                                       Foreground="Gray" FontSize="11"/>
+                        </StackPanel>
+                        <TextBlock Grid.Row="2" Grid.Column="2" VerticalAlignment="Center"
+                                   Text="{Binding PostC.AnomalyBadge}" Foreground="#E53935"
+                                   FontWeight="Bold" FontSize="11"/>
+                    </Grid>
                 </GroupBox>
 
-                <!-- Состояние системы -->
-                <GroupBox Grid.Row="1" Header="Здоровье системы" Margin="0,0,0,5">
+                <!-- РЎРѕСЃС‚РѕСЏРЅРёРµ СЃРёСЃС‚РµРјС‹ -->
+                <GroupBox Grid.Row="1" Header="Р—РґРѕСЂРѕРІСЊРµ СЃРёСЃС‚РµРјС‹" Margin="0,0,0,5">
                     <StackPanel Margin="5">
                         <Border BorderBrush="Gray" BorderThickness="1" Padding="10" CornerRadius="3">
                             <StackPanel>
@@ -334,7 +534,7 @@
                                         <RowDefinition/>
                                         <RowDefinition/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Каналов:"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="РљР°РЅР°Р»РѕРІ:"/>
                                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemHealth.TotalChannels}"
                                                HorizontalAlignment="Right" FontWeight="Bold"/>
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="OK:" Foreground="Green"/>
@@ -353,30 +553,26 @@
                             <Run Text="Samples/s: "/>
                             <Run Text="{Binding SystemHealth.SamplesPerSecond}"/>
                         </TextBlock>
-                        <TextBlock Margin="0,4,0,0">
-                            <Run Text="Аномалии: "/>
-                            <Run Text="{Binding SystemHealth.ActiveAnomalies}" FontWeight="Bold"/>
-                        </TextBlock>
                     </StackPanel>
                 </GroupBox>
 
-                <!-- Статус -->
-                <GroupBox Grid.Row="2" Header="Статус">
+                <!-- РЎС‚Р°С‚СѓСЃ -->
+                <GroupBox Grid.Row="2" Header="РЎС‚Р°С‚СѓСЃ">
                     <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="5"/>
                 </GroupBox>
             </Grid>
         </Grid>
 
-        <!-- Лог событий (общий для всех постов) -->
-        <GroupBox Grid.Row="3" Header="Лог событий" Margin="5">
+        <!-- Р›РѕРі СЃРѕР±С‹С‚РёР№ (РѕР±С‰РёР№ РґР»СЏ РІСЃРµС… РїРѕСЃС‚РѕРІ) -->
+        <GroupBox Grid.Row="3" Header="Р›РѕРі СЃРѕР±С‹С‚РёР№" Margin="5">
             <DataGrid ItemsSource="{Binding LogEntries}"
                       AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Время"    Binding="{Binding Timestamp, StringFormat=HH:mm:ss.fff}" Width="100"/>
-                    <DataGridTextColumn Header="Уровень"  Binding="{Binding Level}"   Width="70"/>
-                    <DataGridTextColumn Header="Пост"     Binding="{Binding Post}"     Width="50"/>
-                    <DataGridTextColumn Header="Источник" Binding="{Binding Source}"   Width="90"/>
-                    <DataGridTextColumn Header="Сообщение" Binding="{Binding Message}" Width="*"/>
+                    <DataGridTextColumn Header="Р’СЂРµРјСЏ"    Binding="{Binding Timestamp, StringFormat=HH:mm:ss.fff}" Width="100"/>
+                    <DataGridTextColumn Header="РЈСЂРѕРІРµРЅСЊ"  Binding="{Binding Level}"   Width="70"/>
+                    <DataGridTextColumn Header="РџРѕСЃС‚"     Binding="{Binding Post}"     Width="50"/>
+                    <DataGridTextColumn Header="РСЃС‚РѕС‡РЅРёРє" Binding="{Binding Source}"   Width="90"/>
+                    <DataGridTextColumn Header="РЎРѕРѕР±С‰РµРЅРёРµ" Binding="{Binding Message}" Width="*"/>
                 </DataGrid.Columns>
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
@@ -393,10 +589,21 @@
             </DataGrid>
         </GroupBox>
 
-        <!-- Строка состояния -->
+        <!-- РЎС‚СЂРѕРєР° СЃРѕСЃС‚РѕСЏРЅРёСЏ -->
         <StatusBar Grid.Row="4">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}"/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock>
+                    <Run Text="A:"/>
+                    <Run Text="{Binding PostA.StateBadge}"/>
+                    <Run Text="  B:"/>
+                    <Run Text="{Binding PostB.StateBadge}"/>
+                    <Run Text="  C:"/>
+                    <Run Text="{Binding PostC.StateBadge}"/>
+                </TextBlock>
             </StatusBarItem>
             <Separator/>
             <StatusBarItem>
