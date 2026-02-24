@@ -17,7 +17,7 @@ namespace JSQ.UI.WPF.ViewModels;
 /// </summary>
 public partial class ChannelChartViewModel : ObservableObject
 {
-    private readonly ExperimentService _service;
+    private readonly IExperimentService _service;
     private readonly List<(DateTime time, double value)> _rawPoints = new(100000);
     private readonly object _pointsLock = new();
     private readonly DispatcherTimer _refreshTimer;
@@ -40,13 +40,15 @@ public partial class ChannelChartViewModel : ObservableObject
     [ObservableProperty]
     private string _currentValueText = "—";
 
-    public ChannelChartViewModel(ChannelStatus channel, ExperimentService service)
+    public ChannelChartViewModel(ChannelStatus channel, IExperimentService service,
+        DateTime? experimentStart = null)
     {
         ChannelIndex = channel.ChannelIndex;
         ChannelName = channel.ChannelName;
         Unit = channel.Unit ?? string.Empty;
         _service = service;
-        _experimentStartTime = DateTime.Now; // По умолчанию - текущее время
+        // Если запись идёт — запоминаем старт; иначе показываем последние 5 минут
+        _experimentStartTime = experimentStart ?? DateTime.Now.AddMinutes(-5);
 
         double? minLimit = null;
         double? maxLimit = null;

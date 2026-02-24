@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using JSQ.UI.WPF.ViewModels;
@@ -101,4 +102,8 @@ public class ExperimentServiceStub : IExperimentService
     public void PausePost(string postId) { }
     public void ResumePost(string postId) { }
     public void StopPost(string postId) { }
+
+    public Task<List<(DateTime time, double value)>> LoadChannelHistoryAsync(
+        int channelIndex, DateTime startTime, DateTime endTime)
+        => Task.FromResult(new List<(DateTime, double)>());
 }

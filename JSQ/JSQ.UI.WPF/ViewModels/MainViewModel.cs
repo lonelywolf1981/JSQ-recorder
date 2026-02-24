@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -377,7 +378,15 @@ public partial class MainViewModel : ObservableObject
     {
         if (channel == null) return;
 
-        var vm = new ChannelChartViewModel(channel, _experimentService);
+        // Берём время старта записи для поста этого канала (если запись активна)
+        DateTime? experimentStart = null;
+        if (!string.IsNullOrEmpty(channel.Post))
+        {
+            var monitor = GetPostMonitor(channel.Post);
+            experimentStart = monitor.CurrentExperiment?.StartTime;
+        }
+
+        var vm = new ChannelChartViewModel(channel, _experimentService, experimentStart);
         var window = new Views.ChannelChartWindow(vm)
         {
             Owner = Application.Current.MainWindow
@@ -519,4 +528,7 @@ public interface IExperimentService
 
     ExperimentState GetPostState(string postId);
     SystemHealth GetCurrentHealth();
+
+    Task<List<(DateTime time, double value)>> LoadChannelHistoryAsync(
+        int channelIndex, DateTime startTime, DateTime endTime);
 }

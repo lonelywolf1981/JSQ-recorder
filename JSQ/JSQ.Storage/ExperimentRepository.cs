@@ -50,6 +50,12 @@ public interface IExperimentRepository
     /// </summary>
     Task<List<(DateTime time, double value)>> GetChannelHistoryAsync(
         string experimentId, int channelIndex, DateTime startTime, DateTime endTime, CancellationToken ct = default);
+
+    /// <summary>
+    /// Получить исторические данные канала за период без фильтра по эксперименту
+    /// </summary>
+    Task<List<(DateTime time, double value)>> GetChannelHistoryAnyAsync(
+        int channelIndex, DateTime startTime, DateTime endTime, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -313,26 +319,70 @@ public class ExperimentRepository : IExperimentRepository
         string experimentId, int channelIndex, DateTime startTime, DateTime endTime, CancellationToken ct = default)
     {
         using var conn = _dbService.GetConnection();
-        
+
         const string sql = @"
-            SELECT timestamp, value 
-            FROM raw_samples 
-            WHERE experiment_id = @ExperimentId 
+            SELECT timestamp AS Timestamp, value AS Value
+            FROM raw_samples
+            WHERE experiment_id = @ExperimentId
               AND channel_index = @ChannelIndex
-              AND timestamp >= @StartTime 
+              AND timestamp >= @StartTime
               AND timestamp <= @EndTime
+              AND is_valid = 1
             ORDER BY timestamp ASC;
         ";
-        
-        var results = await conn.QueryAsync<(string timestamp, double value)>(sql, new
+
+        var rows = await conn.QueryAsync<SampleRow>(sql, new
         {
             ExperimentId = experimentId,
             ChannelIndex = channelIndex,
             StartTime = startTime.ToString("O"),
             EndTime = endTime.ToString("O")
         });
-        
-        return results.Select(r => (DateTime.Parse(r.timestamp), r.value)).ToList();
+
+        return ParseSampleRows(rows);
+    }
+
+    public async Task<List<(DateTime time, double value)>> GetChannelHistoryAnyAsync(
+        int channelIndex, DateTime startTime, DateTime endTime, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+
+        const string sql = @"
+            SELECT timestamp AS Timestamp, value AS Value
+            FROM raw_samples
+            WHERE channel_index = @ChannelIndex
+              AND timestamp >= @StartTime
+              AND timestamp <= @EndTime
+              AND is_valid = 1
+            ORDER BY timestamp ASC;
+        ";
+
+        var rows = await conn.QueryAsync<SampleRow>(sql, new
+        {
+            ChannelIndex = channelIndex,
+            StartTime = startTime.ToString("O"),
+            EndTime = endTime.ToString("O")
+        });
+
+        return ParseSampleRows(rows);
+    }
+
+    private static List<(DateTime time, double value)> ParseSampleRows(IEnumerable<SampleRow> rows)
+    {
+        var result = new List<(DateTime, double)>();
+        foreach (var r in rows)
+        {
+            if (DateTime.TryParse(r.Timestamp, null,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var ts))
+                result.Add((ts, r.Value));
+        }
+        return result;
+    }
+
+    private class SampleRow
+    {
+        public string Timestamp { get; set; } = string.Empty;
+        public double Value { get; set; }
     }
 }
 

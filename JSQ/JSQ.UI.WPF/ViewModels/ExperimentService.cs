@@ -524,24 +524,14 @@ public class ExperimentService : IExperimentService, IDisposable
     public async Task<List<(DateTime time, double value)>> LoadChannelHistoryAsync(
         int channelIndex, DateTime startTime, DateTime endTime)
     {
-        var active = GetActiveExperiment();
-        if (active == null)
-            return new List<(DateTime time, double value)>();
-        
-        return await _experimentRepo.GetChannelHistoryAsync(
-            active.Id, channelIndex, startTime, endTime);
-    }
-    
-    private Experiment? GetActiveExperiment()
-    {
-        lock (_stateLock)
+        try
         {
-            foreach (var state in _postStates.Values)
-            {
-                if (state.IsRunning)
-                    return state.Experiment;
-            }
+            // Ищем по всем экспериментам в диапазоне дат — корректно при нескольких постах
+            return await _experimentRepo.GetChannelHistoryAnyAsync(channelIndex, startTime, endTime);
         }
-        return null;
+        catch
+        {
+            return new List<(DateTime, double)>();
+        }
     }
 }
