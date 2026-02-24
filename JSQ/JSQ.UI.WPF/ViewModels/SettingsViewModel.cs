@@ -147,9 +147,16 @@ public partial class SettingsViewModel : ObservableObject
 
     private bool CanTest() => !IsTesting && !string.IsNullOrWhiteSpace(TransmitterHost) && TransmitterPort > 0;
 
-    partial void OnIsTestingChanged(bool value) => TestConnectionCommand.NotifyCanExecuteChanged();
+    partial void OnIsTestingChanged(bool value)
+    {
+        TestConnectionCommand.NotifyCanExecuteChanged();
+        SaveCommand.NotifyCanExecuteChanged();
+        CancelCommand.NotifyCanExecuteChanged();
+    }
 
-    [RelayCommand]
+    private bool CanSaveOrCancel() => !IsTesting;
+
+    [RelayCommand(CanExecute = nameof(CanSaveOrCancel))]
     private void Save()
     {
         SaveToFile();
@@ -157,7 +164,7 @@ public partial class SettingsViewModel : ObservableObject
         SaveCompleted?.Invoke();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSaveOrCancel))]
     private void Cancel()
     {
         LoadFromFile();

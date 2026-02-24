@@ -10,15 +10,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         DataContext = viewModel;
 
-        viewModel.SaveCompleted += () =>
-        {
-            DialogResult = true;
-            Close();
-        };
-        viewModel.CancelRequested += () =>
-        {
-            DialogResult = false;
-            Close();
-        };
+        viewModel.SaveCompleted += () => { DialogResult = true; };
+        viewModel.CancelRequested += () => { DialogResult = false; };
     }
 }

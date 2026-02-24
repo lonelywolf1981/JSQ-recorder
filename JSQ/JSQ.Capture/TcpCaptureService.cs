@@ -225,8 +225,8 @@ public class TcpCaptureService : ITcpCaptureService
                         }
                         catch (IOException)
                         {
-                            // Таймаут чтения
-                            return 0;
+                            // Таймаут чтения — не разрыв соединения, продолжаем ожидание
+                            return -1;
                         }
                     }, ct);
                 }
@@ -234,10 +234,13 @@ public class TcpCaptureService : ITcpCaptureService
                 {
                     break;
                 }
-                
+
+                if (bytesRead == -1)
+                    continue; // Таймаут чтения — пробуем снова
+
                 if (bytesRead == 0)
                 {
-                    // Удаленное закрытие соединения
+                    // Удалённое закрытие соединения
                     Status = ConnectionStatus.Disconnected;
                     break;
                 }
