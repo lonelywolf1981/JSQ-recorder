@@ -36,6 +36,7 @@ public class LegacyExportService : ILegacyExportService
         string experimentId,
         string outputRoot,
         string? packageName = null,
+        string? innerFileBaseName = null,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(experimentId))
@@ -75,7 +76,11 @@ public class LegacyExportService : ILegacyExportService
             ? BuildNextPackageName(outputRoot)
             : packageName!;
 
-        return CreatePackage(outputRoot, resolvedPackageName, meta, sampleRows);
+        var resolvedInnerBaseName = string.IsNullOrWhiteSpace(innerFileBaseName)
+            ? resolvedPackageName
+            : innerFileBaseName!;
+
+        return CreatePackage(outputRoot, resolvedPackageName, resolvedInnerBaseName, meta, sampleRows);
     }
 
     public LegacyExportResult ExportFromData(
@@ -117,12 +122,13 @@ public class LegacyExportService : ILegacyExportService
             })
             .ToList();
 
-        return CreatePackage(outputRoot, packageName, meta, rawRows);
+        return CreatePackage(outputRoot, packageName, packageName, meta, rawRows);
     }
 
     private static LegacyExportResult CreatePackage(
         string outputRoot,
         string packageName,
+        string innerFileBaseName,
         ExperimentMeta meta,
         List<RawSampleRow> sampleRows)
     {
@@ -135,9 +141,9 @@ public class LegacyExportService : ILegacyExportService
 
         Directory.CreateDirectory(tmpSetDir);
 
-        var dbfFileName = packageName + ".dbf";
-        var datFileName = packageName + ".dat";
-        var iniFileName = packageName + ".ini";
+        var dbfFileName = innerFileBaseName + ".dbf";
+        var datFileName = innerFileBaseName + ".dat";
+        var iniFileName = innerFileBaseName + ".ini";
 
         var tmpDbfPath = Path.Combine(tmpPackageDir, dbfFileName);
         var tmpDatPath = Path.Combine(tmpPackageDir, datFileName);

@@ -531,7 +531,11 @@ public partial class MainViewModel : ObservableObject
 
             _settings.ExportPath = targetDirectory;
 
-            var result = await _exportService.ExportExperimentAsync(safeExperimentId, targetDirectory, packageName);
+            var result = await _exportService.ExportExperimentAsync(
+                safeExperimentId,
+                targetDirectory,
+                packageName,
+                "Prova001");
             StatusMessage = $"Пост {postId}: экспорт завершён ({result.PackageName}, {result.RecordCount} строк)";
 
             LogEntries.Insert(0, new LogEntry

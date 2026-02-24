@@ -359,12 +359,12 @@ public partial class EventHistoryWindow : Window
 
             var dlg = new SaveFileDialog
             {
-                Title = $"Экспорт эксперимента {selected.Name}",
-                Filter = "DBF файл (*.dbf)|*.dbf",
-                FileName = BuildDefaultExportFileName(selected),
+                Title = $"Имя папки экспорта для {selected.Name}",
+                Filter = "Папка экспорта (*.folder)|*.folder",
+                FileName = BuildDefaultExportFolderName(selected) + ".folder",
                 InitialDirectory = exportRoot,
                 AddExtension = true,
-                DefaultExt = ".dbf",
+                DefaultExt = ".folder",
                 OverwritePrompt = false,
                 CheckPathExists = true
             };
@@ -385,7 +385,11 @@ public partial class EventHistoryWindow : Window
 
             _settings.ExportPath = targetDirectory;
 
-            var result = await _exportService.ExportExperimentAsync(selected.Id, targetDirectory, packageName);
+            var result = await _exportService.ExportExperimentAsync(
+                selected.Id,
+                targetDirectory,
+                packageName,
+                "Prova001");
             StatusBlock.Text = $"Экспорт: {result.PackageName}, записей: {result.RecordCount}";
 
             MessageBox.Show(
@@ -433,7 +437,7 @@ public partial class EventHistoryWindow : Window
         await LoadExperimentsAsync(selectPreferred: true);
     }
 
-    private static string BuildDefaultExportFileName(PostExperimentRecord selected)
+    private static string BuildDefaultExportFolderName(PostExperimentRecord selected)
     {
         var baseName = $"Post{selected.PostId}_{selected.StartTime:yyyyMMdd_HHmmss}_{selected.Name}";
         if (string.IsNullOrWhiteSpace(baseName))
@@ -445,7 +449,7 @@ public partial class EventHistoryWindow : Window
         if (baseName.Length > 80)
             baseName = baseName.Substring(0, 80);
 
-        return baseName + ".dbf";
+        return baseName;
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();

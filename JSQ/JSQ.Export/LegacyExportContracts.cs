@@ -10,6 +10,7 @@ public interface ILegacyExportService
         string experimentId,
         string outputRoot,
         string? packageName = null,
+        string? innerFileBaseName = null,
         CancellationToken ct = default);
 }
 
