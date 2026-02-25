@@ -57,9 +57,6 @@ public class ExperimentService : IExperimentService, IDisposable
     public event Action<LogEntry>? LogReceived;
     public event Action<int, double>? ChannelValueReceived;
     public event Action<string, AnomalyEvent>? PostAnomalyDetected;
-    
-    // Для загрузки истории
-    public event Func<int, DateTime, DateTime, Task<List<(DateTime time, double value)>>>? LoadChannelHistoryRequested;
 
     private CancellationTokenSource? _healthUpdateCts;
     private Task _initTask = Task.CompletedTask;

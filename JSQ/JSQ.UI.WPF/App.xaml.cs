@@ -16,7 +16,7 @@ namespace JSQ.UI.WPF;
 /// </summary>
 public partial class App : Application
 {
-    public IServiceProvider Services { get; private set; }
+    public IServiceProvider Services { get; private set; } = null!;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -94,8 +94,17 @@ public class ExperimentServiceStub : IExperimentService
 {
     public event Action<SystemHealth> HealthUpdated = delegate { };
     public event Action<LogEntry> LogReceived = delegate { };
-    public event Action<int, double>? ChannelValueReceived;
-    public event Action<string, AnomalyEvent>? PostAnomalyDetected;
+    public event Action<int, double>? ChannelValueReceived
+    {
+        add { }
+        remove { }
+    }
+
+    public event Action<string, AnomalyEvent>? PostAnomalyDetected
+    {
+        add { }
+        remove { }
+    }
 
     public SystemHealth GetCurrentHealth() => new SystemHealth();
     public ExperimentState GetPostState(string postId) => ExperimentState.Idle;

@@ -9,7 +9,7 @@ namespace JSQ.UI.WPF.Views;
 /// </summary>
 public partial class ChannelSelectionWindow : Window
 {
-    public event Action<List<int>> SelectionSaved;
+    public event Action<List<int>>? SelectionSaved;
     
     public ChannelSelectionWindow(ViewModels.ChannelSelectionViewModel viewModel)
     {
