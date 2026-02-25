@@ -40,6 +40,11 @@ public partial class ChannelStatus : ObservableObject
     /// Пометка канала пользователем для записи/массовых операций переноса.
     /// </summary>
     [ObservableProperty] private bool _isSelected = true;
+
+    /// <summary>
+    /// Признак общего канала (доступен всем постам).
+    /// </summary>
+    [ObservableProperty] private bool _isCommon;
 }
 
 /// <summary>

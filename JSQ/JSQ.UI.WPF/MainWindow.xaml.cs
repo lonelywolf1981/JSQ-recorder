@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -6,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using JSQ.Core.Models;
 using JSQ.UI.WPF.ViewModels;
@@ -55,11 +57,37 @@ public partial class MainWindow : Window
     {
         e.Handled = true;
 
-        if (!string.Equals(e.Column.SortMemberPath, nameof(ChannelStatus.IsSelected), StringComparison.Ordinal))
-            return;
-
         if (sender is not DataGrid grid)
             return;
+
+        if (!string.Equals(e.Column.SortMemberPath, nameof(ChannelStatus.IsSelected), StringComparison.Ordinal))
+        {
+            var sortMember = e.Column.SortMemberPath;
+            if (string.IsNullOrWhiteSpace(sortMember))
+                return;
+
+            var direction = e.Column.SortDirection != ListSortDirection.Ascending
+                ? ListSortDirection.Ascending
+                : ListSortDirection.Descending;
+
+            foreach (var column in grid.Columns)
+            {
+                if (!ReferenceEquals(column, e.Column))
+                    column.SortDirection = null;
+            }
+
+            e.Column.SortDirection = direction;
+
+            var view = CollectionViewSource.GetDefaultView(grid.ItemsSource) as ListCollectionView;
+            if (view != null)
+            {
+                view.SortDescriptions.Clear();
+                view.CustomSort = new ChannelGridComparer(sortMember, direction);
+                view.Refresh();
+            }
+
+            return;
+        }
 
         var postId = ResolvePostIdByGrid(grid);
         if (postId == null)
@@ -151,6 +179,46 @@ public partial class MainWindow : Window
         if (ReferenceEquals(grid, PostBDataGrid)) return "B";
         if (ReferenceEquals(grid, PostCDataGrid)) return "C";
         return null;
+    }
+
+    private sealed class ChannelGridComparer : IComparer
+    {
+        private readonly string _sortMember;
+        private readonly ListSortDirection _direction;
+
+        public ChannelGridComparer(string sortMember, ListSortDirection direction)
+        {
+            _sortMember = sortMember;
+            _direction = direction;
+        }
+
+        public int Compare(object? x, object? y)
+        {
+            if (x is not ChannelStatus a || y is not ChannelStatus b)
+                return 0;
+
+            // Общие каналы всегда сверху и не участвуют в сортировке.
+            if (a.IsCommon && !b.IsCommon) return -1;
+            if (!a.IsCommon && b.IsCommon) return 1;
+            if (a.IsCommon && b.IsCommon) return a.ChannelIndex.CompareTo(b.ChannelIndex);
+
+            var result = _sortMember switch
+            {
+                nameof(ChannelStatus.ChannelName) => string.Compare(a.ChannelName, b.ChannelName, StringComparison.CurrentCultureIgnoreCase),
+                nameof(ChannelStatus.CurrentValue) => Nullable.Compare(a.CurrentValue, b.CurrentValue),
+                nameof(ChannelStatus.Unit) => string.Compare(a.Unit, b.Unit, StringComparison.CurrentCultureIgnoreCase),
+                nameof(ChannelStatus.MinLimit) => Nullable.Compare(a.MinLimit, b.MinLimit),
+                nameof(ChannelStatus.MaxLimit) => Nullable.Compare(a.MaxLimit, b.MaxLimit),
+                nameof(ChannelStatus.HighPrecision) => a.HighPrecision.CompareTo(b.HighPrecision),
+                nameof(ChannelStatus.Status) => a.Status.CompareTo(b.Status),
+                _ => a.ChannelIndex.CompareTo(b.ChannelIndex)
+            };
+
+            if (result == 0)
+                result = a.ChannelIndex.CompareTo(b.ChannelIndex);
+
+            return _direction == ListSortDirection.Descending ? -result : result;
+        }
     }
 
     protected override void OnClosing(CancelEventArgs e)

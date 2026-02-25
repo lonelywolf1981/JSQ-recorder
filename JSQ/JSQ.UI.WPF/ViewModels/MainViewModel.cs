@@ -627,7 +627,8 @@ public partial class MainViewModel : ObservableObject
             HighPrecision = def.HighPrecision,
             Post = postId,
             Status = HealthStatus.NoData,
-            IsSelected = true
+            IsSelected = true,
+            IsCommon = def.Group == ChannelGroup.Common
         };
 
     private void AddChannelStatus(int idx, string postId, ChannelStatus ch)
@@ -799,7 +800,8 @@ public partial class MainViewModel : ObservableObject
                 HighPrecision = def.HighPrecision,
                 Post = postId,
                 Status = HealthStatus.NoData,
-                IsSelected = true
+                IsSelected = true,
+                IsCommon = def.Group == ChannelGroup.Common
             };
             AddChannelStatus(idx, postId, ch);
             GetPostChannels(postId).Add(ch);

@@ -14,6 +14,9 @@
 
         <Style x:Key="ChannelRowStyle" TargetType="DataGridRow">
             <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCommon}" Value="True">
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
                 <!-- данные идут, запись не ведётся → серая строка -->
                 <DataTrigger Binding="{Binding Status}" Value="OK">
                     <Setter Property="Background" Value="#F5F5F5"/>
@@ -162,7 +165,10 @@
                         <DataGrid x:Name="PostADataGrid" Grid.Row="2" ItemsSource="{Binding PostAFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
-                                  VirtualizingPanel.IsVirtualizing="True" RowStyle="{StaticResource ChannelRowStyle}"
+                                  EnableRowVirtualization="True" EnableColumnVirtualization="True"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                  ScrollViewer.CanContentScroll="True"
+                                  RowStyle="{StaticResource ChannelRowStyle}"
                                   Sorting="ChannelGrid_Sorting"
                                   AllowDrop="True"
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
@@ -186,20 +192,28 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Канал" Binding="{Binding ChannelName}" Width="100" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="90" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="45" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Min" Width="70" CanUserSort="False">
+                                <DataGridTemplateColumn Header="Общ" Width="42" CanUserSort="False" IsReadOnly="True">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="≡" HorizontalAlignment="Center" Foreground="#1976D2" FontWeight="Bold"
+                                                       Visibility="{Binding IsCommon, Converter={StaticResource BoolToVis}}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Канал" Binding="{Binding ChannelName}" Width="100" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="90" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="45" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Min" Width="70">
                                     <DataGridTextColumn.Binding>
                                         <Binding Path="MinLimit" Mode="TwoWay" UpdateSourceTrigger="LostFocus" TargetNullValue=""/>
                                     </DataGridTextColumn.Binding>
                                 </DataGridTextColumn>
-                                <DataGridTextColumn Header="Max" Width="70" CanUserSort="False">
+                                <DataGridTextColumn Header="Max" Width="70">
                                     <DataGridTextColumn.Binding>
                                         <Binding Path="MaxLimit" Mode="TwoWay" UpdateSourceTrigger="LostFocus" TargetNullValue=""/>
                                     </DataGridTextColumn.Binding>
                                 </DataGridTextColumn>
-                                <DataGridTemplateColumn Header="10s" Width="45" CanUserSort="False">
+                                <DataGridTemplateColumn Header="10s" Width="45" SortMemberPath="HighPrecision">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox IsChecked="{Binding HighPrecision, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -207,7 +221,7 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="70" IsReadOnly="True" CanUserSort="False"/>
+                                <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="70" IsReadOnly="True"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
@@ -275,7 +289,10 @@
                         <DataGrid x:Name="PostBDataGrid" Grid.Row="2" ItemsSource="{Binding PostBFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
-                                  VirtualizingPanel.IsVirtualizing="True" RowStyle="{StaticResource ChannelRowStyle}"
+                                  EnableRowVirtualization="True" EnableColumnVirtualization="True"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                  ScrollViewer.CanContentScroll="True"
+                                  RowStyle="{StaticResource ChannelRowStyle}"
                                   Sorting="ChannelGrid_Sorting"
                                   AllowDrop="True"
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
@@ -299,20 +316,28 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Канал" Binding="{Binding ChannelName}" Width="100" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="90" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="45" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Min" Width="70" CanUserSort="False">
+                                <DataGridTemplateColumn Header="Общ" Width="42" CanUserSort="False" IsReadOnly="True">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="≡" HorizontalAlignment="Center" Foreground="#1976D2" FontWeight="Bold"
+                                                       Visibility="{Binding IsCommon, Converter={StaticResource BoolToVis}}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Канал" Binding="{Binding ChannelName}" Width="100" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="90" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="45" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Min" Width="70">
                                     <DataGridTextColumn.Binding>
                                         <Binding Path="MinLimit" Mode="TwoWay" UpdateSourceTrigger="LostFocus" TargetNullValue=""/>
                                     </DataGridTextColumn.Binding>
                                 </DataGridTextColumn>
-                                <DataGridTextColumn Header="Max" Width="70" CanUserSort="False">
+                                <DataGridTextColumn Header="Max" Width="70">
                                     <DataGridTextColumn.Binding>
                                         <Binding Path="MaxLimit" Mode="TwoWay" UpdateSourceTrigger="LostFocus" TargetNullValue=""/>
                                     </DataGridTextColumn.Binding>
                                 </DataGridTextColumn>
-                                <DataGridTemplateColumn Header="10s" Width="45" CanUserSort="False">
+                                <DataGridTemplateColumn Header="10s" Width="45" SortMemberPath="HighPrecision">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox IsChecked="{Binding HighPrecision, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -320,7 +345,7 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="70" IsReadOnly="True" CanUserSort="False"/>
+                                <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="70" IsReadOnly="True"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
@@ -388,7 +413,10 @@
                         <DataGrid x:Name="PostCDataGrid" Grid.Row="2" ItemsSource="{Binding PostCFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
-                                  VirtualizingPanel.IsVirtualizing="True" RowStyle="{StaticResource ChannelRowStyle}"
+                                  EnableRowVirtualization="True" EnableColumnVirtualization="True"
+                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                                  ScrollViewer.CanContentScroll="True"
+                                  RowStyle="{StaticResource ChannelRowStyle}"
                                   Sorting="ChannelGrid_Sorting"
                                   AllowDrop="True"
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
@@ -412,20 +440,28 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Канал" Binding="{Binding ChannelName}" Width="100" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="90" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="45" IsReadOnly="True" CanUserSort="False"/>
-                                <DataGridTextColumn Header="Min" Width="70" CanUserSort="False">
+                                <DataGridTemplateColumn Header="Общ" Width="42" CanUserSort="False" IsReadOnly="True">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="≡" HorizontalAlignment="Center" Foreground="#1976D2" FontWeight="Bold"
+                                                       Visibility="{Binding IsCommon, Converter={StaticResource BoolToVis}}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Канал" Binding="{Binding ChannelName}" Width="100" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Значение" Binding="{Binding CurrentValue, StringFormat=F3}" Width="90" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Ед." Binding="{Binding Unit}" Width="45" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Min" Width="70">
                                     <DataGridTextColumn.Binding>
                                         <Binding Path="MinLimit" Mode="TwoWay" UpdateSourceTrigger="LostFocus" TargetNullValue=""/>
                                     </DataGridTextColumn.Binding>
                                 </DataGridTextColumn>
-                                <DataGridTextColumn Header="Max" Width="70" CanUserSort="False">
+                                <DataGridTextColumn Header="Max" Width="70">
                                     <DataGridTextColumn.Binding>
                                         <Binding Path="MaxLimit" Mode="TwoWay" UpdateSourceTrigger="LostFocus" TargetNullValue=""/>
                                     </DataGridTextColumn.Binding>
                                 </DataGridTextColumn>
-                                <DataGridTemplateColumn Header="10s" Width="45" CanUserSort="False">
+                                <DataGridTemplateColumn Header="10s" Width="45" SortMemberPath="HighPrecision">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox IsChecked="{Binding HighPrecision, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -433,7 +469,7 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="70" IsReadOnly="True" CanUserSort="False"/>
+                                <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="70" IsReadOnly="True"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
