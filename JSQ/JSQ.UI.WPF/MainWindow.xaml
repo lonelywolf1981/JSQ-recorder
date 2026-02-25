@@ -6,6 +6,7 @@
         xmlns:vm="clr-namespace:JSQ.UI.WPF.ViewModels"
         mc:Ignorable="d"
         Title="JSQ Experiment Controller" Height="800" Width="1400"
+        Icon="Assets/AppIcon.ico"
         WindowState="Maximized"
         d:DataContext="{d:DesignInstance vm:MainViewModel}">
 

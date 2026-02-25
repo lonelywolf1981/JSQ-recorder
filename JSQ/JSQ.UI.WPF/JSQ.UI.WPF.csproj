@@ -6,6 +6,7 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   
   <!-- Конфигурация для ветки qwen -->
@@ -32,6 +33,13 @@
     <ProjectReference Include="..\JSQ.Storage\JSQ.Storage.csproj" />
     <ProjectReference Include="..\JSQ.Rules\JSQ.Rules.csproj" />
     <ProjectReference Include="..\JSQ.Export\JSQ.Export.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\AppIcon.ico" />
+    <None Update="Assets\AppIcon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
