@@ -8,6 +8,7 @@ using JSQ.UI.WPF.ViewModels;
 using JSQ.Core.Models;
 using JSQ.Export;
 using JSQ.Storage;
+using JSQ.UI.WPF.Services.AutoUpdate;
 
 namespace JSQ.UI.WPF;
 
@@ -39,6 +40,12 @@ public partial class App : Application
 
         try
         {
+            if (AutoUpdateBootstrap.TryLaunchPendingUpdater())
+            {
+                Shutdown(0);
+                return;
+            }
+
             var services = new ServiceCollection();
             ConfigureServices(services);
             Services = services.BuildServiceProvider();

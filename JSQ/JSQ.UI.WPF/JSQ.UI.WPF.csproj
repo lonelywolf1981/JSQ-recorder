@@ -37,6 +37,11 @@
     <ProjectReference Include="..\JSQ.Storage\JSQ.Storage.csproj" />
     <ProjectReference Include="..\JSQ.Rules\JSQ.Rules.csproj" />
     <ProjectReference Include="..\JSQ.Export\JSQ.Export.csproj" />
+    <ProjectReference Include="..\JSQ.Updater\JSQ.Updater.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"
+                      OutputItemType="Content"
+                      CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

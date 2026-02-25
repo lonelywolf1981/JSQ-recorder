@@ -15,8 +15,9 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
-    <Grid Margin="16">
+        <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -128,8 +129,36 @@
             </Grid>
         </GroupBox>
 
+        <!-- Обновления -->
+        <GroupBox Grid.Row="3" Header="Обновления" Margin="0,0,0,8">
+            <Grid Margin="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Автообновление:" VerticalAlignment="Center" Margin="0,4"/>
+                <CheckBox Grid.Row="0" Grid.Column="1" IsChecked="{Binding AutoUpdateEnabled}" Margin="0,4" VerticalAlignment="Center"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Путь к обновлениям:" VerticalAlignment="Center" Margin="0,4"/>
+                <TextBox   Grid.Row="1" Grid.Column="1"
+                           Text="{Binding UpdateFeedPath, UpdateSourceTrigger=PropertyChanged}"
+                           Margin="0,4"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Интервал проверки (мин):" VerticalAlignment="Center" Margin="0,4"/>
+                <TextBox   Grid.Row="2" Grid.Column="1"
+                           Text="{Binding UpdateCheckIntervalMinutes, UpdateSourceTrigger=PropertyChanged}"
+                           Margin="0,4"/>
+            </Grid>
+        </GroupBox>
+
         <!-- Кнопки -->
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Сохранить" Command="{Binding SaveCommand}"
                     IsDefault="True" Padding="20,6" Margin="0,0,8,0"/>
             <Button Content="Отмена" Command="{Binding CancelCommand}"

@@ -14,6 +14,7 @@ using CommunityToolkit.Mvvm.Input;
 using JSQ.Core.Models;
 using JSQ.Export;
 using JSQ.Storage;
+using JSQ.UI.WPF.Services.AutoUpdate;
 using JSQ.UI.WPF.Views;
 
 namespace JSQ.UI.WPF.ViewModels;
@@ -27,6 +28,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ILegacyExportService _exportService;
     private readonly SettingsViewModel _settings;
     private readonly DispatcherTimer _staleChannelTimer;
+    private readonly AutoUpdateManager _autoUpdateManager;
     private static readonly TimeSpan StaleDataThreshold = TimeSpan.FromSeconds(5);
     private string _appliedHost = string.Empty;
     private int _appliedPort;
@@ -84,6 +86,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = "Готов";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdatePrompt))]
+    private string _updatePromptMessage = string.Empty;
+
+    public bool HasUpdatePrompt => !string.IsNullOrWhiteSpace(UpdatePromptMessage);
+
     /// <summary>Признак того, что хотя бы один пост ведет запись.</summary>
     public bool IsAnyPostRunning => PostA.IsRunning || PostB.IsRunning || PostC.IsRunning;
 
@@ -138,6 +146,10 @@ public partial class MainViewModel : ObservableObject
         _appliedTimeoutMs = _settings.ConnectionTimeoutMs;
         _experimentService.BeginMonitoring();
 
+        _autoUpdateManager = new AutoUpdateManager(_settings, () => IsAnyPostRunning);
+        _autoUpdateManager.StatusChanged += OnAutoUpdateStatusChanged;
+        _autoUpdateManager.Start();
+
         _ = RestoreChannelAssignmentsAsync();
 
         _settings.SaveCompleted += OnSettingsSaved;
@@ -176,6 +188,16 @@ public partial class MainViewModel : ObservableObject
         }
 
         StatusMessage = "Настройки сохранены (без переподключения)";
+
+        _ = _autoUpdateManager.CheckForUpdatesAsync();
+    }
+
+    private void OnAutoUpdateStatusChanged(AutoUpdateStatus status)
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            UpdatePromptMessage = status.Message;
+        });
     }
 
     private static string NormalizeHost(string? host)
@@ -888,6 +910,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(IsAnyPostRunning));
         OnPropertyChanged(nameof(CanEditChannelLists));
         OpenSettingsCommand.NotifyCanExecuteChanged();
+        _autoUpdateManager.NotifyRuntimeStateChanged();
     }
 
     [RelayCommand]

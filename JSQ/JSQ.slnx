@@ -6,5 +6,6 @@
   <Project Path="JSQ.Rules/JSQ.Rules.csproj" />
   <Project Path="JSQ.Storage/JSQ.Storage.csproj" />
   <Project Path="JSQ.Tests/JSQ.Tests.csproj" />
+  <Project Path="JSQ.Updater/JSQ.Updater.csproj" />
   <Project Path="JSQ.UI.WPF/JSQ.UI.WPF.csproj" />
 </Solution>

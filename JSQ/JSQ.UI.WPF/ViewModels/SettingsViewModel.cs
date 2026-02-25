@@ -29,6 +29,15 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _exportPath = @"export\";
 
+    [ObservableProperty]
+    private bool _autoUpdateEnabled = true;
+
+    [ObservableProperty]
+    private string _updateFeedPath = @"\\srv-updates\JSQ\stable";
+
+    [ObservableProperty]
+    private int _updateCheckIntervalMinutes = 10;
+
     // --- Тест подключения ---
 
     [ObservableProperty]
@@ -91,6 +100,11 @@ public partial class SettingsViewModel : ObservableObject
                 DatabasePath = dto.DatabasePath;
             if (!string.IsNullOrWhiteSpace(dto.ExportPath))
                 ExportPath = dto.ExportPath;
+            AutoUpdateEnabled = dto.AutoUpdateEnabled;
+            if (!string.IsNullOrWhiteSpace(dto.UpdateFeedPath))
+                UpdateFeedPath = dto.UpdateFeedPath;
+            if (dto.UpdateCheckIntervalMinutes > 0)
+                UpdateCheckIntervalMinutes = dto.UpdateCheckIntervalMinutes;
         }
         catch
         {
@@ -108,7 +122,10 @@ public partial class SettingsViewModel : ObservableObject
                 TransmitterPort = TransmitterPort,
                 ConnectionTimeoutMs = ConnectionTimeoutMs,
                 DatabasePath = DatabasePath,
-                ExportPath = ExportPath
+                ExportPath = ExportPath,
+                AutoUpdateEnabled = AutoUpdateEnabled,
+                UpdateFeedPath = UpdateFeedPath,
+                UpdateCheckIntervalMinutes = UpdateCheckIntervalMinutes
             };
             var json = JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(SettingsFile, json);
@@ -216,5 +233,8 @@ public partial class SettingsViewModel : ObservableObject
         public int ConnectionTimeoutMs { get; set; }
         public string DatabasePath { get; set; } = string.Empty;
         public string ExportPath { get; set; } = string.Empty;
+        public bool AutoUpdateEnabled { get; set; } = true;
+        public string UpdateFeedPath { get; set; } = string.Empty;
+        public int UpdateCheckIntervalMinutes { get; set; } = 10;
     }
 }
