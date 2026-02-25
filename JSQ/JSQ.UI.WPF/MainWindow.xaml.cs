@@ -18,6 +18,8 @@ public partial class MainWindow : Window
 {
     private readonly string _layoutPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "main_grid_layout.json");
     private Point _dragStartPoint;
+    private bool _isLogsVisible = true;
+    private GridLength _savedLogsHeight = new(180);
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -30,6 +32,37 @@ public partial class MainWindow : Window
     private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void ToggleLogsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var logsRow = FindName("LogsRow") as RowDefinition;
+        var logsSplitterRow = FindName("LogsSplitterRow") as RowDefinition;
+        var logsGroupBox = FindName("LogsGroupBox") as GroupBox;
+        var toggleButton = sender as Button ?? FindName("ToggleLogsButton") as Button;
+
+        if (logsRow == null || logsSplitterRow == null || logsGroupBox == null || toggleButton == null)
+            return;
+
+        if (_isLogsVisible)
+        {
+            if (logsRow.ActualHeight > 30)
+                _savedLogsHeight = new GridLength(logsRow.ActualHeight);
+
+            logsRow.Height = new GridLength(0);
+            logsSplitterRow.Height = new GridLength(0);
+            logsGroupBox.Visibility = Visibility.Collapsed;
+            toggleButton.Content = "Показать логи";
+            _isLogsVisible = false;
+        }
+        else
+        {
+            logsRow.Height = _savedLogsHeight.Value > 0 ? _savedLogsHeight : new GridLength(180);
+            logsSplitterRow.Height = new GridLength(5);
+            logsGroupBox.Visibility = Visibility.Visible;
+            toggleButton.Content = "Скрыть логи";
+            _isLogsVisible = true;
+        }
     }
 
     private void ChannelDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)

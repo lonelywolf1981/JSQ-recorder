@@ -68,7 +68,8 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="180"/>
+            <RowDefinition x:Name="LogsSplitterRow" Height="5"/>
+            <RowDefinition x:Name="LogsRow" Height="180"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -743,8 +744,17 @@
             </Grid>
         </Grid>
 
+        <GridSplitter Grid.Row="3"
+                      Height="5"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Center"
+                      Background="#D0D0D0"
+                      ResizeDirection="Rows"
+                      ResizeBehavior="PreviousAndNext"
+                      ShowsPreview="True"/>
+
         <!-- Лог событий -->
-        <GroupBox Grid.Row="3" Header="Лог событий" Margin="5">
+        <GroupBox x:Name="LogsGroupBox" Grid.Row="4" Header="Лог событий" Margin="5">
             <DataGrid ItemsSource="{Binding LogEntries}"
                       AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True">
                 <DataGrid.Columns>
@@ -773,9 +783,13 @@
         </GroupBox>
 
         <!-- Строка состояния -->
-        <StatusBar Grid.Row="4">
+        <StatusBar Grid.Row="5">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}"/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <Button x:Name="ToggleLogsButton" Content="Скрыть логи" Padding="8,1" Click="ToggleLogsButton_Click"/>
             </StatusBarItem>
             <Separator/>
             <StatusBarItem>
