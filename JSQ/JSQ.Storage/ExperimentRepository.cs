@@ -873,8 +873,8 @@ public class ExperimentRepository : IExperimentRepository
         await conn.ExecuteAsync("DELETE FROM ui_channel_config;", transaction: tx);
 
         const string sql = @"
-            INSERT INTO ui_channel_config (channel_index, min_limit, max_limit, high_precision, updated_at)
-            VALUES (@ChannelIndex, @MinLimit, @MaxLimit, @HighPrecision, @UpdatedAt);
+            INSERT INTO ui_channel_config (channel_index, min_limit, max_limit, alias, high_precision, updated_at)
+            VALUES (@ChannelIndex, @MinLimit, @MaxLimit, @Alias, @HighPrecision, @UpdatedAt);
         ";
 
         var now = JsqClock.NowIso();
@@ -887,6 +887,7 @@ public class ExperimentRepository : IExperimentRepository
                 ChannelIndex = idx,
                 MinLimit = cfg.MinLimit,
                 MaxLimit = cfg.MaxLimit,
+                Alias = cfg.Alias,
                 HighPrecision = cfg.HighPrecision ? 1 : 0,
                 UpdatedAt = now
             }, tx);
@@ -903,6 +904,7 @@ public class ExperimentRepository : IExperimentRepository
             SELECT channel_index AS ChannelIndex,
                    min_limit AS MinLimit,
                    max_limit AS MaxLimit,
+                   alias AS Alias,
                    high_precision AS HighPrecision
             FROM ui_channel_config
             ORDER BY channel_index;
@@ -915,6 +917,7 @@ public class ExperimentRepository : IExperimentRepository
             {
                 MinLimit = r.MinLimit,
                 MaxLimit = r.MaxLimit,
+                Alias = r.Alias,
                 HighPrecision = r.HighPrecision != 0
             });
     }
@@ -950,6 +953,7 @@ internal class UiChannelConfigRow
     public int ChannelIndex { get; set; }
     public double? MinLimit { get; set; }
     public double? MaxLimit { get; set; }
+    public string? Alias { get; set; }
     public int HighPrecision { get; set; }
 }
 
@@ -957,6 +961,7 @@ public class UiChannelConfigRecord
 {
     public double? MinLimit { get; set; }
     public double? MaxLimit { get; set; }
+    public string? Alias { get; set; }
     public bool HighPrecision { get; set; }
 }
 

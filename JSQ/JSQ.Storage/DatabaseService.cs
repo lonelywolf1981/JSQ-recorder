@@ -179,10 +179,17 @@ public class SqliteDatabaseService : IDatabaseService
                 channel_index INTEGER PRIMARY KEY,
                 min_limit REAL,
                 max_limit REAL,
+                alias TEXT,
                 high_precision INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT DEFAULT (datetime('now'))
             );
         ");
+
+        var uiCfgColumns = (await conn.QueryAsync<TableInfoRow>("PRAGMA table_info(ui_channel_config);")).ToList();
+        if (!uiCfgColumns.Any(c => string.Equals(c.Name, "alias", StringComparison.OrdinalIgnoreCase)))
+        {
+            await conn.ExecuteAsync("ALTER TABLE ui_channel_config ADD COLUMN alias TEXT;");
+        }
 
         var cfgColumns = (await conn.QueryAsync<TableInfoRow>("PRAGMA table_info(channel_config);")).ToList();
         if (!cfgColumns.Any(c => string.Equals(c.Name, "high_precision", StringComparison.OrdinalIgnoreCase)))
@@ -480,6 +487,7 @@ public class SqliteDatabaseService : IDatabaseService
                 channel_index INTEGER PRIMARY KEY,
                 min_limit REAL,
                 max_limit REAL,
+                alias TEXT,
                 high_precision INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT DEFAULT (datetime('now'))
             );

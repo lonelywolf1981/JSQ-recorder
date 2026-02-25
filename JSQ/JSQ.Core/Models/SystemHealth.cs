@@ -21,6 +21,7 @@ public partial class ChannelStatus : ObservableObject
 {
     [ObservableProperty] private int _channelIndex;
     [ObservableProperty] private string _channelName = string.Empty;
+    [ObservableProperty] private string _alias = string.Empty;
     [ObservableProperty] private string _unit = string.Empty;
     [ObservableProperty] private double? _currentValue;
     [ObservableProperty] private DateTime _lastUpdateTime;

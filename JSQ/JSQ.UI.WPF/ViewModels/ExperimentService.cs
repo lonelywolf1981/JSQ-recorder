@@ -289,15 +289,8 @@ public class ExperimentService : IExperimentService, IDisposable
             experiment.State = ExperimentState.Running;
             experiment.PostId = postId;
 
-            var highPrecisionChannels = channelIndices
-                .Where(idx => ChannelRegistry.All.TryGetValue(idx, out var def) && def.HighPrecision)
-                .ToList();
-
             var anomalyDetector = new AnomalyDetector(experiment.Id);
-            var aggregationService = new AggregationService(
-                experiment.AggregationIntervalSec,
-                highPrecisionChannels,
-                highPrecisionIntervalSeconds: 10);
+            var aggregationService = new AggregationService(experiment.AggregationIntervalSec);
 
             // Правила для всех каналов поста: лимиты из реестра + таймаут NoData
             var rules = new List<AnomalyRule>();

@@ -87,6 +87,9 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Признак того, что хотя бы один пост ведет запись.</summary>
     public bool IsAnyPostRunning => PostA.IsRunning || PostB.IsRunning || PostC.IsRunning;
 
+    /// <summary>Разрешено ли редактирование списков каналов.</summary>
+    public bool CanEditChannelLists => !IsAnyPostRunning;
+
     /// <summary>Текстовый статус для блока "Здоровье системы".</summary>
     public string SystemHealthStatusText => SystemHealth.OverallStatus switch
     {
@@ -417,7 +420,6 @@ public partial class MainViewModel : ObservableObject
 
             def.MinLimit = pair.Value.MinLimit;
             def.MaxLimit = pair.Value.MaxLimit;
-            def.HighPrecision = pair.Value.HighPrecision;
         }
 
         foreach (var statuses in _channelMap.Values)
@@ -429,7 +431,8 @@ public partial class MainViewModel : ObservableObject
 
                 status.MinLimit = cfg.MinLimit;
                 status.MaxLimit = cfg.MaxLimit;
-                status.HighPrecision = cfg.HighPrecision;
+                if (!string.IsNullOrWhiteSpace(cfg.Alias))
+                    status.Alias = cfg.Alias!;
             }
         }
     }
@@ -514,7 +517,10 @@ public partial class MainViewModel : ObservableObject
             {
                 MinLimit = def.MinLimit,
                 MaxLimit = def.MaxLimit,
-                HighPrecision = def.HighPrecision
+                Alias = _channelMap.TryGetValue(def.Index, out var statuses) && statuses.Count > 0
+                    ? statuses[0].Alias
+                    : def.Name,
+                HighPrecision = false
             };
         }
 
@@ -530,6 +536,9 @@ public partial class MainViewModel : ObservableObject
 
     public async Task TogglePostSelectionAsync(string postId)
     {
+        if (IsAnyPostRunning)
+            return;
+
         var channels = GetPostChannels(postId);
         if (channels.Count == 0)
             return;
@@ -580,6 +589,10 @@ public partial class MainViewModel : ObservableObject
             .GroupBy(c => c.ChannelIndex)
             .ToDictionary(g => g.Key, g => g.First().IsSelected);
 
+        var aliasByChannel = GetPostChannels(sourcePostId)
+            .GroupBy(c => c.ChannelIndex)
+            .ToDictionary(g => g.Key, g => g.First().Alias);
+
         var skippedCommon = channelIndices.Count(idx => IsCommonChannel(idx));
         if (selected.Count == 0)
         {
@@ -606,6 +619,8 @@ public partial class MainViewModel : ObservableObject
                     var status = CreateChannelStatus(idx, def, targetPostId);
                     if (selectionByChannel.TryGetValue(idx, out var selectedState))
                         status.IsSelected = selectedState;
+                    if (aliasByChannel.TryGetValue(idx, out var alias))
+                        status.Alias = alias;
                     AddChannelStatus(idx, targetPostId, status);
                     GetPostChannels(targetPostId).Add(status);
                 }
@@ -629,6 +644,7 @@ public partial class MainViewModel : ObservableObject
         {
             ChannelIndex = idx,
             ChannelName = def.Name,
+            Alias = def.Name,
             Unit = def.Unit,
             MinLimit = def.MinLimit,
             MaxLimit = def.MaxLimit,
@@ -693,7 +709,7 @@ public partial class MainViewModel : ObservableObject
 
         if (string.Equals(e.PropertyName, nameof(ChannelStatus.MinLimit), StringComparison.Ordinal) ||
             string.Equals(e.PropertyName, nameof(ChannelStatus.MaxLimit), StringComparison.Ordinal) ||
-            string.Equals(e.PropertyName, nameof(ChannelStatus.HighPrecision), StringComparison.Ordinal))
+            string.Equals(e.PropertyName, nameof(ChannelStatus.Alias), StringComparison.Ordinal))
         {
             if (_suppressChannelConfigPersistence)
                 return;
@@ -703,7 +719,6 @@ public partial class MainViewModel : ObservableObject
             {
                 def.MinLimit = ch.MinLimit;
                 def.MaxLimit = ch.MaxLimit;
-                def.HighPrecision = ch.HighPrecision;
             }
 
             if (_channelMap.TryGetValue(ch.ChannelIndex, out var statuses))
@@ -715,7 +730,7 @@ public partial class MainViewModel : ObservableObject
 
                     status.MinLimit = ch.MinLimit;
                     status.MaxLimit = ch.MaxLimit;
-                    status.HighPrecision = ch.HighPrecision;
+                    status.Alias = ch.Alias;
                 }
             }
 
@@ -740,7 +755,7 @@ public partial class MainViewModel : ObservableObject
         foreach (var ch in source)
         {
             if (string.IsNullOrWhiteSpace(search) ||
-                ch.ChannelName.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0)
+                ch.Alias.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0)
                 filtered.Add(ch);
         }
     }
@@ -802,6 +817,7 @@ public partial class MainViewModel : ObservableObject
             {
                 ChannelIndex = idx,
                 ChannelName = def.Name,
+                Alias = def.Name,
                 Unit = def.Unit,
                 MinLimit = def.MinLimit,
                 MaxLimit = def.MaxLimit,
@@ -870,6 +886,7 @@ public partial class MainViewModel : ObservableObject
     private void NotifyRunningChanged()
     {
         OnPropertyChanged(nameof(IsAnyPostRunning));
+        OnPropertyChanged(nameof(CanEditChannelLists));
         OpenSettingsCommand.NotifyCanExecuteChanged();
     }
 

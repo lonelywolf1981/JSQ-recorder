@@ -138,6 +138,9 @@ public partial class MainWindow : Window
     private async Task TransferSelectedChannelsAsync(DataGrid sourceGrid, string sourcePostId, string targetPostId)
     {
         var vm = (MainViewModel)DataContext;
+        if (vm.IsAnyPostRunning)
+            return;
+
         var selectedRowIndices = sourceGrid.SelectedItems
             .OfType<ChannelStatus>()
             .Select(c => c.ChannelIndex)
@@ -173,6 +176,9 @@ public partial class MainWindow : Window
             return;
 
         var vm = (MainViewModel)DataContext;
+        if (vm.IsAnyPostRunning)
+            return;
+
         var selectedRowIndices = sourceGrid.SelectedItems
             .OfType<ChannelStatus>()
             .Select(c => c.ChannelIndex)
@@ -208,6 +214,9 @@ public partial class MainWindow : Window
 
         var sourcePost = sourcePostId!;
         var vm = (MainViewModel)DataContext;
+        if (vm.IsAnyPostRunning)
+            return;
+
         await vm.TransferChannelsAsync(sourcePost, targetPostId, indices);
     }
 
@@ -242,12 +251,12 @@ public partial class MainWindow : Window
 
             var result = _sortMember switch
             {
-                nameof(ChannelStatus.ChannelName) => string.Compare(a.ChannelName, b.ChannelName, StringComparison.CurrentCultureIgnoreCase),
+                nameof(ChannelStatus.ChannelName) => string.Compare(a.Alias, b.Alias, StringComparison.CurrentCultureIgnoreCase),
+                nameof(ChannelStatus.Alias) => string.Compare(a.Alias, b.Alias, StringComparison.CurrentCultureIgnoreCase),
                 nameof(ChannelStatus.CurrentValue) => Nullable.Compare(a.CurrentValue, b.CurrentValue),
                 nameof(ChannelStatus.Unit) => string.Compare(a.Unit, b.Unit, StringComparison.CurrentCultureIgnoreCase),
                 nameof(ChannelStatus.MinLimit) => Nullable.Compare(a.MinLimit, b.MinLimit),
                 nameof(ChannelStatus.MaxLimit) => Nullable.Compare(a.MaxLimit, b.MaxLimit),
-                nameof(ChannelStatus.HighPrecision) => a.HighPrecision.CompareTo(b.HighPrecision),
                 nameof(ChannelStatus.Status) => a.Status.CompareTo(b.Status),
                 _ => a.ChannelIndex.CompareTo(b.ChannelIndex)
             };
