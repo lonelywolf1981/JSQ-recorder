@@ -187,7 +187,7 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // ignore invalid layout file
+            // Игнорируем поврежденный файл раскладки.
         }
     }
 
@@ -207,7 +207,7 @@ public partial class MainWindow : Window
         }
         catch
         {
-            // ignore IO issues
+            // Игнорируем временные ошибки ввода-вывода.
         }
     }
 

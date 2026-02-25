@@ -58,7 +58,7 @@ public class SqliteDatabaseService : IDatabaseService
             Directory.CreateDirectory(directory);
         }
         
-        // Connection string с WAL mode (Shared cache несовместим с WAL)
+        // Строка подключения с WAL-режимом (Shared cache несовместим с WAL).
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = dbPath,
@@ -84,19 +84,19 @@ public class SqliteDatabaseService : IDatabaseService
         
         using var conn = GetConnection();
         
-        // Включаем WAL mode
+        // Включаем режим WAL.
         await conn.ExecuteAsync("PRAGMA journal_mode=WAL;");
         
         // Включаем synchronous=FULL для гарантированной записи
         await conn.ExecuteAsync("PRAGMA synchronous=FULL;");
         
-        // Включаем foreign keys
+        // Включаем внешние ключи.
         await conn.ExecuteAsync("PRAGMA foreign_keys=ON;");
         
         // Увеличиваем размер кэша страниц (10000 страниц * 4KB = 40MB)
         await conn.ExecuteAsync("PRAGMA cache_size=-10000;");
         
-        // Включаем busy timeout (5 секунд)
+        // Включаем таймаут занятости БД (5 секунд).
         await conn.ExecuteAsync("PRAGMA busy_timeout=5000;");
         
         // Загружаем и выполняем схему
@@ -491,7 +491,7 @@ public class SqliteDatabaseService : IDatabaseService
     public async Task CheckpointAsync(CancellationToken ct = default)
     {
         using var conn = GetConnection();
-        // WAL checkpoint - PASSIVE (не блокирующий)
+        // Контрольная точка WAL в режиме PASSIVE (не блокирует запись).
         await conn.ExecuteAsync("PRAGMA wal_checkpoint(PASSIVE);");
     }
     

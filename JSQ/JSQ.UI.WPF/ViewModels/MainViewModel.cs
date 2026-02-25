@@ -34,10 +34,10 @@ public partial class MainViewModel : ObservableObject
     private bool _suppressSelectionPersistence;
     private bool _suppressChannelConfigPersistence;
 
-    // channelIndex → список ChannelStatus (один per post, для Common-каналов их может быть несколько)
+    // channelIndex -> список ChannelStatus (по одному на пост; для Common-каналов может быть несколько)
     private readonly Dictionary<int, List<ChannelStatus>> _channelMap = new();
 
-    // channelIndex → HashSet<postId> (Common-каналы могут принадлежать нескольким постам)
+    // channelIndex -> HashSet<postId> (Common-каналы могут принадлежать нескольким постам)
     private readonly Dictionary<int, HashSet<string>> _channelPostAssignment = new();
 
     // --- Состояние постов (мониторинг) ---
@@ -84,10 +84,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = "Готов";
 
-    /// <summary>True если хотя бы один пост ведёт запись.</summary>
+    /// <summary>Признак того, что хотя бы один пост ведет запись.</summary>
     public bool IsAnyPostRunning => PostA.IsRunning || PostB.IsRunning || PostC.IsRunning;
 
-    /// <summary>Читаемый текст для OverallStatus в блоке "Здоровье системы".</summary>
+    /// <summary>Текстовый статус для блока "Здоровье системы".</summary>
     public string SystemHealthStatusText => SystemHealth.OverallStatus switch
     {
         HealthStatus.OK      => "НОРМА",
@@ -139,7 +139,7 @@ public partial class MainViewModel : ObservableObject
 
         _settings.SaveCompleted += OnSettingsSaved;
         _settings.NonIntrusiveConnectionProbe = ProbeCurrentConnectionAsync;
-        // CancelRequested — просто закрывает окно, BeginMonitoring не вызываем
+        // При отмене настроек окно просто закрывается, повторный BeginMonitoring не вызываем.
     }
 
     private void OnSettingsSaved()
@@ -220,7 +220,7 @@ public partial class MainViewModel : ObservableObject
             $"Текущее соединение для {normalizedHost}:{port} не активно: {snapshot.status}"));
     }
 
-    /// <summary>Назначает каналы по умолчанию: группа PostA → пост A, PostB → B, PostC → C.</summary>
+    /// <summary>Назначает каналы по умолчанию: группа PostA -> пост A, PostB -> B, PostC -> C.</summary>
     private void InitializeDefaultChannelAssignment()
     {
         foreach (var statuses in _channelMap.Values)
@@ -258,7 +258,7 @@ public partial class MainViewModel : ObservableObject
                 _ => null
             };
 
-            if (postId == null) continue; // System — не назначаем по умолчанию
+            if (postId == null) continue; // Каналы System по умолчанию не назначаем.
 
             var ch = CreateChannelStatus(kvp.Key, def, postId);
             AddChannelStatus(kvp.Key, postId, ch);
@@ -468,7 +468,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch
         {
-            // Не прерываем UI при кратковременной недоступности БД.
+            // Не прерываем работу интерфейса при кратковременной недоступности БД.
         }
     }
 
@@ -490,7 +490,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch
         {
-            // Не прерываем UI при кратковременной недоступности БД.
+            // Не прерываем работу интерфейса при кратковременной недоступности БД.
         }
     }
 
@@ -516,7 +516,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch
         {
-            // Не прерываем UI при кратковременной недоступности БД.
+            // Не прерываем работу интерфейса при кратковременной недоступности БД.
         }
     }
 

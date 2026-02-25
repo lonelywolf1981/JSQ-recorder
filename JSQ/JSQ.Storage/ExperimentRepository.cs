@@ -99,32 +99,32 @@ public interface IExperimentRepository
     Task<List<Experiment>> RecoverOrphanedExperimentsAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Сохранить текущее распределение каналов по постам для UI.
+    /// Сохранить текущее распределение каналов по постам для интерфейса.
     /// </summary>
     Task SavePostChannelAssignmentsAsync(Dictionary<string, List<int>> assignments, CancellationToken ct = default);
 
     /// <summary>
-    /// Загрузить сохраненное распределение каналов по постам для UI.
+    /// Загрузить сохраненное распределение каналов по постам для интерфейса.
     /// </summary>
     Task<Dictionary<string, List<int>>> GetPostChannelAssignmentsAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Сохранить пометки выбранных каналов по постам для UI.
+    /// Сохранить пометки выбранных каналов по постам для интерфейса.
     /// </summary>
     Task SavePostChannelSelectionsAsync(Dictionary<string, List<int>> selections, CancellationToken ct = default);
 
     /// <summary>
-    /// Загрузить пометки выбранных каналов по постам для UI.
+    /// Загрузить пометки выбранных каналов по постам для интерфейса.
     /// </summary>
     Task<Dictionary<string, List<int>>> GetPostChannelSelectionsAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Сохранить UI-конфигурацию каналов (лимиты и high-precision).
+    /// Сохранить конфигурацию каналов интерфейса (лимиты и режим 10с).
     /// </summary>
     Task SaveUiChannelConfigsAsync(Dictionary<int, UiChannelConfigRecord> configs, CancellationToken ct = default);
 
     /// <summary>
-    /// Загрузить UI-конфигурацию каналов (лимиты и high-precision).
+    /// Загрузить конфигурацию каналов интерфейса (лимиты и режим 10с).
     /// </summary>
     Task<Dictionary<int, UiChannelConfigRecord>> GetUiChannelConfigsAsync(CancellationToken ct = default);
 }
