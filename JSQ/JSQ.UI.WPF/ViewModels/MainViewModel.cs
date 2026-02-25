@@ -241,6 +241,9 @@ public partial class MainViewModel : ObservableObject
 
             if (def.Group == ChannelGroup.Common)
             {
+                if (!IsPinnedCommonChannel(kvp.Key, def))
+                    continue;
+
                 foreach (var pid in new[] { "A", "B", "C" })
                 {
                     var commonStatus = CreateChannelStatus(kvp.Key, def, pid);
@@ -433,6 +436,11 @@ public partial class MainViewModel : ObservableObject
 
     private static bool IsCommonChannel(int idx)
         => ChannelRegistry.All.TryGetValue(idx, out var def) && def.Group == ChannelGroup.Common;
+
+    private static bool IsPinnedCommonChannel(int idx, ChannelDefinition def)
+        => idx == 14 || idx == 15 ||
+           string.Equals(def.Name, "UR-sie", StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(def.Name, "T-sie", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsMovableChannel(int idx)
         => ChannelRegistry.All.TryGetValue(idx, out var def) &&
