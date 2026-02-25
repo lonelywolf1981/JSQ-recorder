@@ -35,6 +35,11 @@ public partial class ChannelStatus : ObservableObject
 
     /// <summary>True если запись на этом посту активна.</summary>
     [ObservableProperty] private bool _isRecording;
+
+    /// <summary>
+    /// Пометка канала пользователем для записи/массовых операций переноса.
+    /// </summary>
+    [ObservableProperty] private bool _isSelected = true;
 }
 
 /// <summary>

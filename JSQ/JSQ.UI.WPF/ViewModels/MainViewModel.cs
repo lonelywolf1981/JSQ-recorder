@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -28,6 +30,7 @@ public partial class MainViewModel : ObservableObject
     private string _appliedHost = string.Empty;
     private int _appliedPort;
     private int _appliedTimeoutMs;
+    private bool _suppressSelectionPersistence;
 
     // channelIndex → список ChannelStatus (один per post, для Common-каналов их может быть несколько)
     private readonly Dictionary<int, List<ChannelStatus>> _channelMap = new();
@@ -130,6 +133,8 @@ public partial class MainViewModel : ObservableObject
         _appliedTimeoutMs = _settings.ConnectionTimeoutMs;
         _experimentService.BeginMonitoring();
 
+        _ = RestoreChannelAssignmentsAsync();
+
         _settings.SaveCompleted += OnSettingsSaved;
         _settings.NonIntrusiveConnectionProbe = ProbeCurrentConnectionAsync;
         // CancelRequested — просто закрывает окно, BeginMonitoring не вызываем
@@ -216,9 +221,33 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Назначает каналы по умолчанию: группа PostA → пост A, PostB → B, PostC → C.</summary>
     private void InitializeDefaultChannelAssignment()
     {
+        foreach (var statuses in _channelMap.Values)
+        {
+            foreach (var status in statuses)
+                status.PropertyChanged -= OnChannelStatusPropertyChanged;
+        }
+
+        PostAChannels.Clear();
+        PostBChannels.Clear();
+        PostCChannels.Clear();
+        _channelMap.Clear();
+        _channelPostAssignment.Clear();
+
         foreach (var kvp in ChannelRegistry.All)
         {
             var def = kvp.Value;
+
+            if (def.Group == ChannelGroup.Common)
+            {
+                foreach (var pid in new[] { "A", "B", "C" })
+                {
+                    var commonStatus = CreateChannelStatus(kvp.Key, def, pid);
+                    AddChannelStatus(kvp.Key, pid, commonStatus);
+                    GetPostChannels(pid).Add(commonStatus);
+                }
+                continue;
+            }
+
             string? postId = def.Group switch
             {
                 ChannelGroup.PostA => "A",
@@ -227,7 +256,7 @@ public partial class MainViewModel : ObservableObject
                 _ => null
             };
 
-            if (postId == null) continue; // Common/System — не назначаем по умолчанию
+            if (postId == null) continue; // System — не назначаем по умолчанию
 
             var ch = CreateChannelStatus(kvp.Key, def, postId);
             AddChannelStatus(kvp.Key, postId, ch);
@@ -237,6 +266,278 @@ public partial class MainViewModel : ObservableObject
         ApplyPostFilter("A");
         ApplyPostFilter("B");
         ApplyPostFilter("C");
+    }
+
+    private async Task RestoreChannelAssignmentsAsync()
+    {
+        try
+        {
+            var stored = await _experimentService.LoadPostChannelAssignmentsAsync();
+            var storedSelections = await _experimentService.LoadPostChannelSelectionsAsync();
+            var hasStored = stored.Values.Any(v => v.Count > 0);
+
+            if (!hasStored)
+            {
+                await PersistChannelAssignmentsAsync();
+                await PersistChannelSelectionsAsync();
+                return;
+            }
+
+            var apply = new Action(() =>
+            {
+                _suppressSelectionPersistence = true;
+                ApplyStoredAssignments(stored);
+                ApplyStoredSelections(storedSelections);
+                _suppressSelectionPersistence = false;
+                StatusMessage = "Распределение каналов восстановлено из БД";
+            });
+
+            if (Application.Current?.Dispatcher != null)
+                Application.Current.Dispatcher.Invoke(apply);
+            else
+                apply();
+        }
+        catch
+        {
+            // Если восстановление недоступно, продолжаем на дефолтных назначениях.
+            _suppressSelectionPersistence = false;
+        }
+    }
+
+    private void ApplyStoredAssignments(Dictionary<string, List<int>> stored)
+    {
+        InitializeDefaultChannelAssignment();
+
+        var movableByPost = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = new HashSet<int>(),
+            ["B"] = new HashSet<int>(),
+            ["C"] = new HashSet<int>()
+        };
+
+        var used = new HashSet<int>();
+        foreach (var postId in new[] { "A", "B", "C" })
+        {
+            if (!stored.TryGetValue(postId, out var list))
+                continue;
+
+            foreach (var idx in list)
+            {
+                if (!IsMovableChannel(idx) || used.Contains(idx))
+                    continue;
+
+                movableByPost[postId].Add(idx);
+                used.Add(idx);
+            }
+        }
+
+        foreach (var kvp in ChannelRegistry.All)
+        {
+            if (!IsMovableChannel(kvp.Key))
+                continue;
+
+            if (used.Contains(kvp.Key))
+                continue;
+
+            var fallbackPost = kvp.Value.Group switch
+            {
+                ChannelGroup.PostA => "A",
+                ChannelGroup.PostB => "B",
+                ChannelGroup.PostC => "C",
+                _ => null
+            };
+
+            if (fallbackPost != null)
+                movableByPost[fallbackPost].Add(kvp.Key);
+        }
+
+        foreach (var postId in new[] { "A", "B", "C" })
+        {
+            var toRemove = _channelPostAssignment
+                .Where(k => k.Value.Contains(postId) && IsMovableChannel(k.Key))
+                .Select(k => k.Key)
+                .ToList();
+
+            foreach (var idx in toRemove)
+                RemoveChannelStatus(idx, postId);
+
+            foreach (var idx in movableByPost[postId].OrderBy(v => v))
+            {
+                if (!ChannelRegistry.All.TryGetValue(idx, out var def))
+                    continue;
+
+                var ch = CreateChannelStatus(idx, def, postId);
+                AddChannelStatus(idx, postId, ch);
+                GetPostChannels(postId).Add(ch);
+            }
+        }
+
+        ApplyPostFilter("A");
+        ApplyPostFilter("B");
+        ApplyPostFilter("C");
+    }
+
+    private void ApplyStoredSelections(Dictionary<string, List<int>> storedSelections)
+    {
+        var selectedByPost = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = new HashSet<int>(storedSelections.TryGetValue("A", out var a) ? a : new List<int>()),
+            ["B"] = new HashSet<int>(storedSelections.TryGetValue("B", out var b) ? b : new List<int>()),
+            ["C"] = new HashSet<int>(storedSelections.TryGetValue("C", out var c) ? c : new List<int>())
+        };
+
+        foreach (var postId in new[] { "A", "B", "C" })
+        {
+            var selected = selectedByPost[postId];
+            foreach (var ch in GetPostChannels(postId))
+            {
+                // Если в БД нет данных для канала, оставляем выбранным по умолчанию.
+                ch.IsSelected = selected.Count == 0 || selected.Contains(ch.ChannelIndex);
+            }
+        }
+    }
+
+    private static bool IsCommonChannel(int idx)
+        => ChannelRegistry.All.TryGetValue(idx, out var def) && def.Group == ChannelGroup.Common;
+
+    private static bool IsMovableChannel(int idx)
+        => ChannelRegistry.All.TryGetValue(idx, out var def) &&
+           (def.Group == ChannelGroup.PostA || def.Group == ChannelGroup.PostB || def.Group == ChannelGroup.PostC);
+
+    private async Task PersistChannelAssignmentsAsync()
+    {
+        var payload = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = new List<int>(),
+            ["B"] = new List<int>(),
+            ["C"] = new List<int>()
+        };
+
+        foreach (var kvp in _channelPostAssignment)
+        {
+            if (!IsMovableChannel(kvp.Key))
+                continue;
+
+            foreach (var postId in kvp.Value)
+            {
+                if (payload.TryGetValue(postId, out var list))
+                    list.Add(kvp.Key);
+            }
+        }
+
+        foreach (var postId in payload.Keys.ToList())
+            payload[postId] = payload[postId].Distinct().OrderBy(v => v).ToList();
+
+        try
+        {
+            await _experimentService.SavePostChannelAssignmentsAsync(payload);
+        }
+        catch
+        {
+            // Не прерываем UI при кратковременной недоступности БД.
+        }
+    }
+
+    private async Task PersistChannelSelectionsAsync()
+    {
+        if (_suppressSelectionPersistence)
+            return;
+
+        var payload = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = GetPostChannels("A").Where(c => c.IsSelected).Select(c => c.ChannelIndex).Distinct().OrderBy(v => v).ToList(),
+            ["B"] = GetPostChannels("B").Where(c => c.IsSelected).Select(c => c.ChannelIndex).Distinct().OrderBy(v => v).ToList(),
+            ["C"] = GetPostChannels("C").Where(c => c.IsSelected).Select(c => c.ChannelIndex).Distinct().OrderBy(v => v).ToList()
+        };
+
+        try
+        {
+            await _experimentService.SavePostChannelSelectionsAsync(payload);
+        }
+        catch
+        {
+            // Не прерываем UI при кратковременной недоступности БД.
+        }
+    }
+
+    public IReadOnlyList<int> GetTransferCandidateIndices(string sourcePostId, IReadOnlyList<int> selectedRowIndices)
+    {
+        var checkedIndices = GetPostChannels(sourcePostId)
+            .Where(c => c.IsSelected)
+            .Select(c => c.ChannelIndex)
+            .Distinct()
+            .ToList();
+
+        if (checkedIndices.Count > 0)
+            return checkedIndices;
+
+        return selectedRowIndices
+            .Distinct()
+            .ToList();
+    }
+
+    public async Task TransferChannelsAsync(string sourcePostId, string targetPostId, IReadOnlyList<int> channelIndices)
+    {
+        if (string.Equals(sourcePostId, targetPostId, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (IsAnyPostRunning)
+        {
+            StatusMessage = "Нельзя менять распределение каналов во время активной записи";
+            return;
+        }
+
+        var selected = channelIndices
+            .Where(IsMovableChannel)
+            .Distinct()
+            .ToList();
+
+        var selectionByChannel = GetPostChannels(sourcePostId)
+            .GroupBy(c => c.ChannelIndex)
+            .ToDictionary(g => g.Key, g => g.First().IsSelected);
+
+        var skippedCommon = channelIndices.Count(idx => IsCommonChannel(idx));
+        if (selected.Count == 0)
+        {
+            StatusMessage = skippedCommon > 0
+                ? "Общие каналы закреплены за всеми постами и не переносятся"
+                : "Не выбраны переносимые каналы";
+            return;
+        }
+
+        foreach (var idx in selected)
+        {
+            foreach (var postId in new[] { "A", "B", "C" })
+            {
+                if (string.Equals(postId, targetPostId, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                RemoveChannelStatus(idx, postId);
+            }
+
+            if (!_channelPostAssignment.TryGetValue(idx, out var posts) || !posts.Contains(targetPostId))
+            {
+                if (ChannelRegistry.All.TryGetValue(idx, out var def))
+                {
+                    var status = CreateChannelStatus(idx, def, targetPostId);
+                    if (selectionByChannel.TryGetValue(idx, out var selectedState))
+                        status.IsSelected = selectedState;
+                    AddChannelStatus(idx, targetPostId, status);
+                    GetPostChannels(targetPostId).Add(status);
+                }
+            }
+        }
+
+        ApplyPostFilter("A");
+        ApplyPostFilter("B");
+        ApplyPostFilter("C");
+
+        await PersistChannelAssignmentsAsync();
+        await PersistChannelSelectionsAsync();
+
+        StatusMessage =
+            $"Перенесено {selected.Count} каналов: {sourcePostId} -> {targetPostId}" +
+            (skippedCommon > 0 ? $" (пропущено общих: {skippedCommon})" : string.Empty);
     }
 
     private ChannelStatus CreateChannelStatus(int idx, ChannelDefinition def, string postId) =>
@@ -249,11 +550,14 @@ public partial class MainViewModel : ObservableObject
             MaxLimit = def.MaxLimit,
             HighPrecision = def.HighPrecision,
             Post = postId,
-            Status = HealthStatus.NoData
+            Status = HealthStatus.NoData,
+            IsSelected = true
         };
 
     private void AddChannelStatus(int idx, string postId, ChannelStatus ch)
     {
+        ch.PropertyChanged += OnChannelStatusPropertyChanged;
+
         if (!_channelMap.TryGetValue(idx, out var list))
             _channelMap[idx] = list = new List<ChannelStatus>();
         list.Add(ch);
@@ -267,8 +571,18 @@ public partial class MainViewModel : ObservableObject
     {
         if (_channelMap.TryGetValue(idx, out var list))
         {
+            foreach (var removed in list.Where(s => s.Post == postId).ToList())
+                removed.PropertyChanged -= OnChannelStatusPropertyChanged;
+
             list.RemoveAll(s => s.Post == postId);
             if (list.Count == 0) _channelMap.Remove(idx);
+        }
+
+        var postChannels = GetPostChannels(postId);
+        for (var i = postChannels.Count - 1; i >= 0; i--)
+        {
+            if (postChannels[i].ChannelIndex == idx)
+                postChannels.RemoveAt(i);
         }
 
         if (_channelPostAssignment.TryGetValue(idx, out var posts))
@@ -276,6 +590,20 @@ public partial class MainViewModel : ObservableObject
             posts.Remove(postId);
             if (posts.Count == 0) _channelPostAssignment.Remove(idx);
         }
+    }
+
+    private void OnChannelStatusPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressSelectionPersistence)
+            return;
+
+        if (sender is not ChannelStatus ch)
+            return;
+
+        if (!string.Equals(e.PropertyName, nameof(ChannelStatus.IsSelected), StringComparison.Ordinal))
+            return;
+
+        _ = PersistChannelSelectionsAsync();
     }
 
     // --- Поиск по постам ---
@@ -361,7 +689,8 @@ public partial class MainViewModel : ObservableObject
                 MaxLimit = def.MaxLimit,
                 HighPrecision = def.HighPrecision,
                 Post = postId,
-                Status = HealthStatus.NoData
+                Status = HealthStatus.NoData,
+                IsSelected = true
             };
             AddChannelStatus(idx, postId, ch);
             GetPostChannels(postId).Add(ch);
@@ -369,6 +698,8 @@ public partial class MainViewModel : ObservableObject
 
         ApplyPostFilter(postId);
         StatusMessage = $"Пост {postId}: назначено {newIndices.Count} каналов";
+        _ = PersistChannelAssignmentsAsync();
+        _ = PersistChannelSelectionsAsync();
     }
 
     // --- Команды ---
@@ -384,6 +715,38 @@ public partial class MainViewModel : ObservableObject
     }
 
     private bool CanOpenSettings() => !IsAnyPostRunning;
+
+    [RelayCommand]
+    private async Task PowerOnPost(string postId)
+    {
+        var success = await _experimentService.SetPostPowerOnAsync(postId);
+
+        if (!success)
+        {
+            StatusMessage = $"Не удалось включить питание поста {postId}";
+            return;
+        }
+
+        StatusMessage = $"Команда включения питания поста {postId} отправлена";
+    }
+
+    [RelayCommand]
+    private async Task PowerOffPost(string postId)
+    {
+        var success = await _experimentService.SetPostPowerOffAsync(postId);
+        StatusMessage = success
+            ? $"Команда отключения питания поста {postId} отправлена"
+            : $"Не удалось отключить питание поста {postId}";
+    }
+
+    [RelayCommand]
+    private async Task PowerOffAll()
+    {
+        var success = await _experimentService.SetAllPowerOffAsync();
+        StatusMessage = success
+            ? "Команда общего отключения питания отправлена"
+            : "Не удалось выполнить общее отключение питания";
+    }
 
     private void NotifyRunningChanged()
     {
@@ -428,14 +791,25 @@ public partial class MainViewModel : ObservableObject
         if (!viewModel.Confirmed) return;
 
         var experiment = viewModel.BuildExperiment();
-        var channelIndices = _channelPostAssignment
-            .Where(kvp => kvp.Value.Contains(postId))
-            .Select(kvp => kvp.Key)
+        var selectedChannels = GetPostChannels(postId)
+            .Where(ch => ch.IsSelected)
+            .ToList();
+
+        if (selectedChannels.Count == 0)
+        {
+            StatusMessage = $"Пост {postId}: нет отмеченных каналов";
+            return;
+        }
+
+        var channelIndices = selectedChannels
+            .Where(ch => ch.CurrentValue.HasValue && ch.Status != HealthStatus.NoData)
+            .Select(ch => ch.ChannelIndex)
+            .Distinct()
             .ToList();
 
         if (channelIndices.Count == 0)
         {
-            StatusMessage = $"Пост {postId}: не назначены каналы для записи";
+            StatusMessage = $"Пост {postId}: среди отмеченных нет каналов с данными";
             return;
         }
 
@@ -892,6 +1266,11 @@ public interface IExperimentService
     Task<(DateTime? start, DateTime? end)> GetExperimentDataRangeAsync(string experimentId);
 
     Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId);
+
+    Task<Dictionary<string, List<int>>> LoadPostChannelAssignmentsAsync(CancellationToken ct = default);
+    Task SavePostChannelAssignmentsAsync(Dictionary<string, List<int>> assignments, CancellationToken ct = default);
+    Task<Dictionary<string, List<int>>> LoadPostChannelSelectionsAsync(CancellationToken ct = default);
+    Task SavePostChannelSelectionsAsync(Dictionary<string, List<int>> selections, CancellationToken ct = default);
 }
 
 /// <summary>

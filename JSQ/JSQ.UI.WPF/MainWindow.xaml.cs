@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -14,6 +15,7 @@ namespace JSQ.UI.WPF;
 public partial class MainWindow : Window
 {
     private readonly string _layoutPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "main_grid_layout.json");
+    private Point _dragStartPoint;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -27,6 +29,110 @@ public partial class MainWindow : Window
     {
         if (sender is DataGrid grid && grid.SelectedItem is ChannelStatus ch)
             ((MainViewModel)DataContext).OpenChannelChartCommand.Execute(ch);
+    }
+
+    private async void MoveAToB_Click(object sender, RoutedEventArgs e)
+    {
+        await TransferSelectedChannelsAsync(PostADataGrid, "A", "B");
+    }
+
+    private async void MoveBToA_Click(object sender, RoutedEventArgs e)
+    {
+        await TransferSelectedChannelsAsync(PostBDataGrid, "B", "A");
+    }
+
+    private async void MoveBToC_Click(object sender, RoutedEventArgs e)
+    {
+        await TransferSelectedChannelsAsync(PostBDataGrid, "B", "C");
+    }
+
+    private async void MoveCToB_Click(object sender, RoutedEventArgs e)
+    {
+        await TransferSelectedChannelsAsync(PostCDataGrid, "C", "B");
+    }
+
+    private async Task TransferSelectedChannelsAsync(DataGrid sourceGrid, string sourcePostId, string targetPostId)
+    {
+        var vm = (MainViewModel)DataContext;
+        var selectedRowIndices = sourceGrid.SelectedItems
+            .OfType<ChannelStatus>()
+            .Select(c => c.ChannelIndex)
+            .Distinct()
+            .ToList();
+
+        var indices = vm.GetTransferCandidateIndices(sourcePostId, selectedRowIndices);
+
+        await vm.TransferChannelsAsync(sourcePostId, targetPostId, indices);
+    }
+
+    private void ChannelGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStartPoint = e.GetPosition(this);
+    }
+
+    private void ChannelGrid_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed)
+            return;
+
+        if (sender is not DataGrid sourceGrid)
+            return;
+
+        var currentPos = e.GetPosition(this);
+        var delta = _dragStartPoint - currentPos;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        var sourcePostId = ResolvePostIdByGrid(sourceGrid);
+        if (sourcePostId == null)
+            return;
+
+        var vm = (MainViewModel)DataContext;
+        var selectedRowIndices = sourceGrid.SelectedItems
+            .OfType<ChannelStatus>()
+            .Select(c => c.ChannelIndex)
+            .Distinct()
+            .ToList();
+        var indices = vm.GetTransferCandidateIndices(sourcePostId, selectedRowIndices);
+        if (indices.Count == 0)
+            return;
+
+        var data = new DataObject();
+        data.SetData("JSQ.TransferSourcePost", sourcePostId);
+        data.SetData("JSQ.TransferIndices", indices.ToArray());
+        DragDrop.DoDragDrop(sourceGrid, data, DragDropEffects.Move);
+    }
+
+    private async void ChannelGrid_Drop(object sender, DragEventArgs e)
+    {
+        if (sender is not DataGrid targetGrid)
+            return;
+
+        var targetPostId = ResolvePostIdByGrid(targetGrid);
+        if (targetPostId == null)
+            return;
+
+        if (!e.Data.GetDataPresent("JSQ.TransferSourcePost") || !e.Data.GetDataPresent("JSQ.TransferIndices"))
+            return;
+
+        var sourcePostId = e.Data.GetData("JSQ.TransferSourcePost") as string;
+        var indices = e.Data.GetData("JSQ.TransferIndices") as int[];
+
+        if (string.IsNullOrWhiteSpace(sourcePostId) || indices == null || indices.Length == 0)
+            return;
+
+        var sourcePost = sourcePostId!;
+        var vm = (MainViewModel)DataContext;
+        await vm.TransferChannelsAsync(sourcePost, targetPostId, indices);
+    }
+
+    private string? ResolvePostIdByGrid(DataGrid grid)
+    {
+        if (ReferenceEquals(grid, PostADataGrid)) return "A";
+        if (ReferenceEquals(grid, PostBDataGrid)) return "B";
+        if (ReferenceEquals(grid, PostCDataGrid)) return "C";
+        return null;
     }
 
     protected override void OnClosing(CancelEventArgs e)

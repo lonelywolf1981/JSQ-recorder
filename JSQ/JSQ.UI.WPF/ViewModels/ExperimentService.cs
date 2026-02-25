@@ -35,6 +35,24 @@ public class ExperimentService : IExperimentService, IDisposable
     private string _host = "192.168.0.214";
     private int _port = 55555;
 
+    // Бинарный протокол передатчика (подтверждено ETL):
+    // - init-пакет словаря управлений
+    // - команды GO start/stop (0x0015)
+    // - команды DOxx ON/OFF (20 байт)
+    private static readonly byte[] ProtocolInitPacket = HexToBytes(
+        "0000012400000018000000094469674F757453657400000007436F6D616E6469000000084C6F6F7073536574000000084C6F6F70734465660000000A496E7075744C6F6F70730000000553657455690000000850617373614461410000000944495374616E6462790000000B4C6F6F705374616E64427900000008536574444F2D4F4E00000009536574444F2D4F4646000000035265670000000B43616E63656C6C615265670000000B496E697A696F526567545800000006436F6E6669670000000C43616C696272617A696F6E650000000653656C6563740000000A737461746F43616C6962000000064F66667365740000000754696D6572444F00000008536574706F696E7400000007737461746F474F00000009446174652D54696D650000000444617461");
+
+    private static readonly byte[] GoStartPacket = HexToBytes("0000000400150101");
+    private static readonly byte[] GoStopPacket = HexToBytes("0000000400150000");
+
+    // Соответствие постов бинарным выходам управления (подтверждено двумя ETL).
+    private static readonly Dictionary<string, int> PostDoIndexMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["A"] = 1, // DO01
+        ["B"] = 2, // DO02
+        ["C"] = 3  // DO03
+    };
+
     public event Action<SystemHealth>? HealthUpdated;
     public event Action<LogEntry>? LogReceived;
     public event Action<int, double>? ChannelValueReceived;
@@ -88,6 +106,55 @@ public class ExperimentService : IExperimentService, IDisposable
         _host = host;
         _port = port;
         _captureService.ConnectionTimeoutMs = timeoutMs;
+    }
+
+    public Task<bool> SetPowerOnAsync(CancellationToken ct = default)
+    {
+        return SetAllPowerAsync(enable: true, ct);
+    }
+
+    public Task<bool> SetPowerOffAsync(CancellationToken ct = default)
+    {
+        return SetAllPowerAsync(enable: false, ct);
+    }
+
+    public Task<bool> SetPostPowerOnAsync(string postId, CancellationToken ct = default)
+    {
+        return SendPostPowerCommandAsync(postId, enable: true, ct);
+    }
+
+    public Task<bool> SetPostPowerOffAsync(string postId, CancellationToken ct = default)
+    {
+        return SendPostPowerCommandAsync(postId, enable: false, ct);
+    }
+
+    public async Task<bool> SetAllPowerOffAsync(CancellationToken ct = default)
+    {
+        return await SetAllPowerAsync(enable: false, ct);
+    }
+
+    public async Task<Dictionary<string, List<int>>> LoadPostChannelAssignmentsAsync(CancellationToken ct = default)
+    {
+        await _initTask;
+        return await _experimentRepo.GetPostChannelAssignmentsAsync(ct);
+    }
+
+    public async Task SavePostChannelAssignmentsAsync(Dictionary<string, List<int>> assignments, CancellationToken ct = default)
+    {
+        await _initTask;
+        await _experimentRepo.SavePostChannelAssignmentsAsync(assignments, ct);
+    }
+
+    public async Task<Dictionary<string, List<int>>> LoadPostChannelSelectionsAsync(CancellationToken ct = default)
+    {
+        await _initTask;
+        return await _experimentRepo.GetPostChannelSelectionsAsync(ct);
+    }
+
+    public async Task SavePostChannelSelectionsAsync(Dictionary<string, List<int>> selections, CancellationToken ct = default)
+    {
+        await _initTask;
+        await _experimentRepo.SavePostChannelSelectionsAsync(selections, ct);
     }
 
     public (string host, int port, ConnectionStatus status, DateTime lastPacketTime) GetConnectionSnapshot()
@@ -162,6 +229,14 @@ public class ExperimentService : IExperimentService, IDisposable
 
                 await _captureService.ConnectAsync(host, port);
 
+                // После подключения передатчик ожидает бинарный init-пакет протокола.
+                // Без этого пакета приложение может видеть "Connected", но не получать каналов.
+                _ = Task.Run(async () =>
+                {
+                    try { await SendInitializationSequenceAsync(); }
+                    catch { }
+                });
+
                 LogReceived?.Invoke(new LogEntry
                 {
                     Timestamp = JsqClock.Now,
@@ -189,10 +264,14 @@ public class ExperimentService : IExperimentService, IDisposable
 
     public void StartPost(string postId, Experiment experiment, IReadOnlyList<int> channelIndices)
     {
+        bool shouldSendGoStart;
+
         lock (_stateLock)
         {
             if (_postStates.ContainsKey(postId))
                 return; // уже запущен
+
+            shouldSendGoStart = !_postStates.Values.Any(s => s.IsRunning && !s.IsPaused);
 
             if (string.IsNullOrEmpty(experiment.Id))
                 experiment.Id = Guid.NewGuid().ToString("N");
@@ -249,6 +328,19 @@ public class ExperimentService : IExperimentService, IDisposable
                     _channelPostMap[idx] = set = new HashSet<string>();
                 set.Add(postId);
             }
+        }
+
+        if (shouldSendGoStart)
+        {
+            _ = Task.Run(async () =>
+            {
+                await SendBinaryPacketAsync(
+                    GoStartPacket,
+                    source: "Record",
+                    postId: null,
+                    successMessage: "Отправлена бинарная команда старта записи (0x0015=0101)",
+                    failureMessage: "Не удалось отправить команду старта записи");
+            });
         }
 
         // Сохраняем в БД асинхронно
@@ -339,6 +431,7 @@ public class ExperimentService : IExperimentService, IDisposable
     public void StopPost(string postId)
     {
         PostState? state;
+        bool shouldSendGoStop;
         lock (_stateLock)
         {
             if (!_postStates.TryGetValue(postId, out state))
@@ -356,6 +449,21 @@ public class ExperimentService : IExperimentService, IDisposable
                     if (set.Count == 0) _channelPostMap.Remove(idx);
                 }
             }
+
+            shouldSendGoStop = !_postStates.Values.Any(s => s.IsRunning && !s.IsPaused);
+        }
+
+        if (shouldSendGoStop)
+        {
+            _ = Task.Run(async () =>
+            {
+                await SendBinaryPacketAsync(
+                    GoStopPacket,
+                    source: "Record",
+                    postId: null,
+                    successMessage: "Отправлена бинарная команда остановки записи (0x0015=0000)",
+                    failureMessage: "Не удалось отправить команду остановки записи");
+            });
         }
 
         var experiment = state.Experiment;
@@ -621,6 +729,153 @@ public class ExperimentService : IExperimentService, IDisposable
             try { await _experimentRepo.SaveAnomalyEventAsync(evt); }
             catch { }
         });
+    }
+
+    private async Task<bool> SetAllPowerAsync(bool enable, CancellationToken ct = default)
+    {
+        var ok = true;
+
+        foreach (var postId in new[] { "A", "B", "C" })
+        {
+            var postOk = await SendPostPowerCommandAsync(postId, enable, ct);
+            ok = ok && postOk;
+
+            if (!ct.IsCancellationRequested)
+                await Task.Delay(30, ct);
+        }
+
+        return ok;
+    }
+
+    private async Task SendInitializationSequenceAsync(CancellationToken ct = default)
+    {
+        await SendBinaryPacketAsync(
+            ProtocolInitPacket,
+            source: "Protocol",
+            postId: null,
+            successMessage: "Отправлен init-пакет протокола (словарь команд/полей)",
+            failureMessage: "Не удалось отправить init-пакет протокола",
+            ct: ct);
+    }
+
+    private async Task<bool> SendPostPowerCommandAsync(string postId, bool enable, CancellationToken ct = default)
+    {
+        if (!PostDoIndexMap.TryGetValue(postId, out var doIndex))
+        {
+            LogReceived?.Invoke(new LogEntry
+            {
+                Timestamp = JsqClock.Now,
+                Level = "Warning",
+                Source = "Power",
+                Post = postId,
+                Message = $"Неизвестный пост для управления питанием: {postId}"
+            });
+            return false;
+        }
+
+        var packet = BuildDoPacket(doIndex, enable);
+        var stateLabel = enable ? "ON" : "OFF";
+
+        return await SendBinaryPacketAsync(
+            packet,
+            source: "Power",
+            postId: postId,
+            successMessage: $"Отправлена команда розетки поста {postId}: DO{doIndex:D2} {stateLabel}",
+            failureMessage: $"Не удалось переключить розетку поста {postId}",
+            ct: ct);
+    }
+
+    private async Task<bool> SendBinaryPacketAsync(
+        byte[] packet,
+        string source,
+        string? postId,
+        string successMessage,
+        string failureMessage,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (_captureService.Status != ConnectionStatus.Connected)
+            {
+                LogReceived?.Invoke(new LogEntry
+                {
+                    Timestamp = JsqClock.Now,
+                    Level = "Warning",
+                    Source = source,
+                    Post = postId,
+                    Message = $"{failureMessage}: нет активного подключения к передатчику"
+                });
+                return false;
+            }
+
+            await _captureService.SendAsync(packet, ct);
+
+            LogReceived?.Invoke(new LogEntry
+            {
+                Timestamp = JsqClock.Now,
+                Level = "Info",
+                Source = source,
+                Post = postId,
+                Message = successMessage
+            });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LogReceived?.Invoke(new LogEntry
+            {
+                Timestamp = JsqClock.Now,
+                Level = "Warning",
+                Source = source,
+                Post = postId,
+                Message = $"{failureMessage}: {ex.Message}"
+            });
+            return false;
+        }
+    }
+
+    private static byte[] BuildDoPacket(int doIndex, bool enable)
+    {
+        if (doIndex < 1 || doIndex > 3)
+            throw new ArgumentOutOfRangeException(nameof(doIndex), "Поддерживаются только DO01..DO03");
+
+        var stateByte = enable ? (byte)0x01 : (byte)0x00;
+
+        byte trailer = doIndex switch
+        {
+            1 => enable ? (byte)0x0E : (byte)0x0F,
+            2 => enable ? (byte)0x0D : (byte)0x0C,
+            3 => enable ? (byte)0x0C : (byte)0x0D,
+            _ => (byte)0x00
+        };
+
+        return new byte[]
+        {
+            0x00, 0x00, 0x00, 0x10,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x01, 0x00, 0x00,
+            0x00, 0x04,
+            0x44, 0x4F, 0x30, (byte)('0' + doIndex),
+            stateByte,
+            trailer
+        };
+    }
+
+    private static byte[] HexToBytes(string hex)
+    {
+        if ((hex.Length & 1) != 0)
+            throw new ArgumentException("Hex string length must be even", nameof(hex));
+
+        var bytes = new byte[hex.Length / 2];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            bytes[i] = byte.Parse(
+                hex.Substring(i * 2, 2),
+                NumberStyles.HexNumber,
+                CultureInfo.InvariantCulture);
+        }
+
+        return bytes;
     }
 
     public async Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId)

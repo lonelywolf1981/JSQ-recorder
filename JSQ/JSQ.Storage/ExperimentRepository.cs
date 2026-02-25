@@ -97,6 +97,26 @@ public interface IExperimentRepository
     /// пометить их как Recovered и вернуть список.
     /// </summary>
     Task<List<Experiment>> RecoverOrphanedExperimentsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Сохранить текущее распределение каналов по постам для UI.
+    /// </summary>
+    Task SavePostChannelAssignmentsAsync(Dictionary<string, List<int>> assignments, CancellationToken ct = default);
+
+    /// <summary>
+    /// Загрузить сохраненное распределение каналов по постам для UI.
+    /// </summary>
+    Task<Dictionary<string, List<int>>> GetPostChannelAssignmentsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Сохранить пометки выбранных каналов по постам для UI.
+    /// </summary>
+    Task SavePostChannelSelectionsAsync(Dictionary<string, List<int>> selections, CancellationToken ct = default);
+
+    /// <summary>
+    /// Загрузить пометки выбранных каналов по постам для UI.
+    /// </summary>
+    Task<Dictionary<string, List<int>>> GetPostChannelSelectionsAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -699,6 +719,141 @@ public class ExperimentRepository : IExperimentRepository
 
         return (start, end);
     }
+
+    public async Task SavePostChannelAssignmentsAsync(Dictionary<string, List<int>> assignments, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+        using var tx = conn.BeginTransaction();
+
+        await conn.ExecuteAsync("DELETE FROM post_channel_assignment;", transaction: tx);
+
+        const string sql = @"
+            INSERT INTO post_channel_assignment (post_id, channel_index, updated_at)
+            VALUES (@PostId, @ChannelIndex, @UpdatedAt);
+        ";
+
+        var now = JsqClock.NowIso();
+        foreach (var pair in assignments)
+        {
+            var postId = (pair.Key ?? string.Empty).Trim().ToUpperInvariant();
+            if (postId is not ("A" or "B" or "C"))
+                continue;
+
+            foreach (var idx in pair.Value.Distinct().OrderBy(v => v))
+            {
+                await conn.ExecuteAsync(sql, new
+                {
+                    PostId = postId,
+                    ChannelIndex = idx,
+                    UpdatedAt = now
+                }, tx);
+            }
+        }
+
+        tx.Commit();
+    }
+
+    public async Task<Dictionary<string, List<int>>> GetPostChannelAssignmentsAsync(CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+
+        const string sql = @"
+            SELECT post_id AS PostId, channel_index AS ChannelIndex
+            FROM post_channel_assignment
+            ORDER BY post_id, channel_index;
+        ";
+
+        var rows = await conn.QueryAsync<PostChannelAssignmentRow>(sql);
+
+        var result = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = new List<int>(),
+            ["B"] = new List<int>(),
+            ["C"] = new List<int>()
+        };
+
+        foreach (var row in rows)
+        {
+            var postId = (row.PostId ?? string.Empty).Trim().ToUpperInvariant();
+            if (!result.TryGetValue(postId, out var list))
+                continue;
+
+            list.Add(row.ChannelIndex);
+        }
+
+        foreach (var post in result.Keys.ToList())
+            result[post] = result[post].Distinct().OrderBy(v => v).ToList();
+
+        return result;
+    }
+
+    public async Task SavePostChannelSelectionsAsync(Dictionary<string, List<int>> selections, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+        using var tx = conn.BeginTransaction();
+
+        await conn.ExecuteAsync("DELETE FROM post_channel_selection;", transaction: tx);
+
+        const string sql = @"
+            INSERT INTO post_channel_selection (post_id, channel_index, is_selected, updated_at)
+            VALUES (@PostId, @ChannelIndex, 1, @UpdatedAt);
+        ";
+
+        var now = JsqClock.NowIso();
+        foreach (var pair in selections)
+        {
+            var postId = (pair.Key ?? string.Empty).Trim().ToUpperInvariant();
+            if (postId is not ("A" or "B" or "C"))
+                continue;
+
+            foreach (var idx in pair.Value.Distinct().OrderBy(v => v))
+            {
+                await conn.ExecuteAsync(sql, new
+                {
+                    PostId = postId,
+                    ChannelIndex = idx,
+                    UpdatedAt = now
+                }, tx);
+            }
+        }
+
+        tx.Commit();
+    }
+
+    public async Task<Dictionary<string, List<int>>> GetPostChannelSelectionsAsync(CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+
+        const string sql = @"
+            SELECT post_id AS PostId, channel_index AS ChannelIndex
+            FROM post_channel_selection
+            WHERE is_selected = 1
+            ORDER BY post_id, channel_index;
+        ";
+
+        var rows = await conn.QueryAsync<PostChannelAssignmentRow>(sql);
+
+        var result = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = new List<int>(),
+            ["B"] = new List<int>(),
+            ["C"] = new List<int>()
+        };
+
+        foreach (var row in rows)
+        {
+            var postId = (row.PostId ?? string.Empty).Trim().ToUpperInvariant();
+            if (!result.TryGetValue(postId, out var list))
+                continue;
+
+            list.Add(row.ChannelIndex);
+        }
+
+        foreach (var post in result.Keys.ToList())
+            result[post] = result[post].Distinct().OrderBy(v => v).ToList();
+
+        return result;
+    }
 }
 
 /// <summary>
@@ -718,6 +873,12 @@ internal class SampleRangeRow
 {
     public string? StartTimestamp { get; set; }
     public string? EndTimestamp { get; set; }
+}
+
+internal class PostChannelAssignmentRow
+{
+    public string PostId { get; set; } = string.Empty;
+    public int ChannelIndex { get; set; }
 }
 
 /// <summary>

@@ -163,8 +163,20 @@
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
                                   VirtualizingPanel.IsVirtualizing="True" RowStyle="{StaticResource ChannelRowStyle}"
+                                  AllowDrop="True"
+                                  PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
+                                  MouseMove="ChannelGrid_MouseMove"
+                                  Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="✓" Width="30">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
@@ -201,8 +213,8 @@
 
                 <!-- Перенос A <-> B -->
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,0,0">
-                    <Button Content="A → B" Padding="6,8" Margin="0,0,0,6" Click="MoveAToB_Click"/>
-                    <Button Content="B → A" Padding="6,8" Click="MoveBToA_Click"/>
+                    <Button Content=">>" ToolTip="A в B" Padding="6,8" Margin="0,0,0,6" Click="MoveAToB_Click"/>
+                    <Button Content="&lt;&lt;" ToolTip="B в A" Padding="6,8" Click="MoveBToA_Click"/>
                 </StackPanel>
 
                 <!-- Пост B -->
@@ -262,8 +274,20 @@
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
                                   VirtualizingPanel.IsVirtualizing="True" RowStyle="{StaticResource ChannelRowStyle}"
+                                  AllowDrop="True"
+                                  PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
+                                  MouseMove="ChannelGrid_MouseMove"
+                                  Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="✓" Width="30">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
@@ -300,8 +324,8 @@
 
                 <!-- Перенос B <-> C -->
                 <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,0,0">
-                    <Button Content="B → C" Padding="6,8" Margin="0,0,0,6" Click="MoveBToC_Click"/>
-                    <Button Content="C → B" Padding="6,8" Click="MoveCToB_Click"/>
+                    <Button Content=">>" ToolTip="B в C" Padding="6,8" Margin="0,0,0,6" Click="MoveBToC_Click"/>
+                    <Button Content="&lt;&lt;" ToolTip="C в B" Padding="6,8" Click="MoveCToB_Click"/>
                 </StackPanel>
 
                 <!-- Пост C -->
@@ -361,8 +385,20 @@
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
                                   VirtualizingPanel.IsVirtualizing="True" RowStyle="{StaticResource ChannelRowStyle}"
+                                  AllowDrop="True"
+                                  PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
+                                  MouseMove="ChannelGrid_MouseMove"
+                                  Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>
+                                <DataGridTemplateColumn Header="✓" Width="30">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="" Width="20">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>

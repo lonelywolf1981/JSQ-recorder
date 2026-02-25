@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
@@ -129,4 +130,26 @@ public class ExperimentServiceStub : IExperimentService
 
     public Task<List<ChannelEventRecord>> GetExperimentEventsAsync(string experimentId)
         => Task.FromResult(new List<ChannelEventRecord>());
+
+    public Task<Dictionary<string, List<int>>> LoadPostChannelAssignmentsAsync(CancellationToken ct = default)
+        => Task.FromResult(new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = new List<int>(),
+            ["B"] = new List<int>(),
+            ["C"] = new List<int>()
+        });
+
+    public Task SavePostChannelAssignmentsAsync(Dictionary<string, List<int>> assignments, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task<Dictionary<string, List<int>>> LoadPostChannelSelectionsAsync(CancellationToken ct = default)
+        => Task.FromResult(new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A"] = new List<int>(),
+            ["B"] = new List<int>(),
+            ["C"] = new List<int>()
+        });
+
+    public Task SavePostChannelSelectionsAsync(Dictionary<string, List<int>> selections, CancellationToken ct = default)
+        => Task.CompletedTask;
 }

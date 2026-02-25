@@ -153,6 +153,27 @@ public class SqliteDatabaseService : IDatabaseService
         await conn.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_agg_samples_experiment_timestamp ON agg_samples_20s(experiment_id, timestamp);");
         await conn.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_agg_samples_channel ON agg_samples_20s(experiment_id, channel_index, timestamp);");
 
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS post_channel_assignment (
+                post_id TEXT NOT NULL,
+                channel_index INTEGER NOT NULL,
+                updated_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (post_id, channel_index)
+            );
+        ");
+        await conn.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_post_channel_assignment_post ON post_channel_assignment(post_id);");
+
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS post_channel_selection (
+                post_id TEXT NOT NULL,
+                channel_index INTEGER NOT NULL,
+                is_selected INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (post_id, channel_index)
+            );
+        ");
+        await conn.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_post_channel_selection_post ON post_channel_selection(post_id);");
+
         var cfgColumns = (await conn.QueryAsync<TableInfoRow>("PRAGMA table_info(channel_config);")).ToList();
         if (!cfgColumns.Any(c => string.Equals(c.Name, "high_precision", StringComparison.OrdinalIgnoreCase)))
         {
@@ -423,6 +444,27 @@ public class SqliteDatabaseService : IDatabaseService
                 high_precision INTEGER DEFAULT 0,
                 agg_interval_sec INTEGER DEFAULT 20
             );
+
+            CREATE TABLE IF NOT EXISTS post_channel_assignment (
+                post_id TEXT NOT NULL,
+                channel_index INTEGER NOT NULL,
+                updated_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (post_id, channel_index)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_post_channel_assignment_post
+                ON post_channel_assignment(post_id);
+
+            CREATE TABLE IF NOT EXISTS post_channel_selection (
+                post_id TEXT NOT NULL,
+                channel_index INTEGER NOT NULL,
+                is_selected INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (post_id, channel_index)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_post_channel_selection_post
+                ON post_channel_selection(post_id);
         ";
         
         await conn.ExecuteAsync(sql);
