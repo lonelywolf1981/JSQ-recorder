@@ -800,7 +800,7 @@
             </StatusBarItem>
             <Separator/>
             <StatusBarItem>
-                <TextBlock Text="JSQ v0.1.0"/>
+                <TextBlock Text="JSQ v0.2.0"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>
