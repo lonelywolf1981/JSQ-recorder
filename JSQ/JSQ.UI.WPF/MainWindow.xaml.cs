@@ -27,6 +27,11 @@ public partial class MainWindow : Window
         Loaded += (_, _) => LoadGridLayout();
     }
 
+    private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
     private void ChannelDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is DataGrid grid && grid.SelectedItem is ChannelStatus ch)

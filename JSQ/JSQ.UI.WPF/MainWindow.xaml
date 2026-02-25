@@ -75,10 +75,9 @@
         <!-- Меню -->
         <Menu Grid.Row="0">
             <MenuItem Header="_Файл">
-                <MenuItem Header="Вы_ход"/>
+                <MenuItem Header="Вы_ход" Click="ExitMenuItem_Click"/>
             </MenuItem>
             <MenuItem Header="_Настройки" Command="{Binding OpenSettingsCommand}"/>
-            <MenuItem Header="_Помощь"/>
         </Menu>
 
         <!-- Панель инструментов -->
