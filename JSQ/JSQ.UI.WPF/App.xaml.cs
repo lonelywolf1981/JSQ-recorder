@@ -152,4 +152,10 @@ public class ExperimentServiceStub : IExperimentService
 
     public Task SavePostChannelSelectionsAsync(Dictionary<string, List<int>> selections, CancellationToken ct = default)
         => Task.CompletedTask;
+
+    public Task<Dictionary<int, UiChannelConfigRecord>> LoadUiChannelConfigsAsync(CancellationToken ct = default)
+        => Task.FromResult(new Dictionary<int, UiChannelConfigRecord>());
+
+    public Task SaveUiChannelConfigsAsync(Dictionary<int, UiChannelConfigRecord> configs, CancellationToken ct = default)
+        => Task.CompletedTask;
 }

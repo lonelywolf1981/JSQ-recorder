@@ -51,6 +51,24 @@ public partial class MainWindow : Window
         await TransferSelectedChannelsAsync(PostCDataGrid, "C", "B");
     }
 
+    private async void ChannelGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+
+        if (!string.Equals(e.Column.SortMemberPath, nameof(ChannelStatus.IsSelected), StringComparison.Ordinal))
+            return;
+
+        if (sender is not DataGrid grid)
+            return;
+
+        var postId = ResolvePostIdByGrid(grid);
+        if (postId == null)
+            return;
+
+        var vm = (MainViewModel)DataContext;
+        await vm.TogglePostSelectionAsync(postId);
+    }
+
     private async Task TransferSelectedChannelsAsync(DataGrid sourceGrid, string sourcePostId, string targetPostId)
     {
         var vm = (MainViewModel)DataContext;

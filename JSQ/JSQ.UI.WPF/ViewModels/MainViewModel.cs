@@ -13,6 +13,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JSQ.Core.Models;
 using JSQ.Export;
+using JSQ.Storage;
 using JSQ.UI.WPF.Views;
 
 namespace JSQ.UI.WPF.ViewModels;
@@ -31,6 +32,7 @@ public partial class MainViewModel : ObservableObject
     private int _appliedPort;
     private int _appliedTimeoutMs;
     private bool _suppressSelectionPersistence;
+    private bool _suppressChannelConfigPersistence;
 
     // channelIndex → список ChannelStatus (один per post, для Common-каналов их может быть несколько)
     private readonly Dictionary<int, List<ChannelStatus>> _channelMap = new();
@@ -274,21 +276,26 @@ public partial class MainViewModel : ObservableObject
         {
             var stored = await _experimentService.LoadPostChannelAssignmentsAsync();
             var storedSelections = await _experimentService.LoadPostChannelSelectionsAsync();
+            var storedConfigs = await _experimentService.LoadUiChannelConfigsAsync();
             var hasStored = stored.Values.Any(v => v.Count > 0);
 
             if (!hasStored)
             {
                 await PersistChannelAssignmentsAsync();
                 await PersistChannelSelectionsAsync();
+                await PersistUiChannelConfigsAsync();
                 return;
             }
 
             var apply = new Action(() =>
             {
                 _suppressSelectionPersistence = true;
+                _suppressChannelConfigPersistence = true;
                 ApplyStoredAssignments(stored);
                 ApplyStoredSelections(storedSelections);
+                ApplyStoredChannelConfigs(storedConfigs);
                 _suppressSelectionPersistence = false;
+                _suppressChannelConfigPersistence = false;
                 StatusMessage = "Распределение каналов восстановлено из БД";
             });
 
@@ -301,6 +308,7 @@ public partial class MainViewModel : ObservableObject
         {
             // Если восстановление недоступно, продолжаем на дефолтных назначениях.
             _suppressSelectionPersistence = false;
+            _suppressChannelConfigPersistence = false;
         }
     }
 
@@ -397,6 +405,32 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private void ApplyStoredChannelConfigs(Dictionary<int, UiChannelConfigRecord> configs)
+    {
+        foreach (var pair in configs)
+        {
+            if (!ChannelRegistry.All.TryGetValue(pair.Key, out var def))
+                continue;
+
+            def.MinLimit = pair.Value.MinLimit;
+            def.MaxLimit = pair.Value.MaxLimit;
+            def.HighPrecision = pair.Value.HighPrecision;
+        }
+
+        foreach (var statuses in _channelMap.Values)
+        {
+            foreach (var status in statuses)
+            {
+                if (!configs.TryGetValue(status.ChannelIndex, out var cfg))
+                    continue;
+
+                status.MinLimit = cfg.MinLimit;
+                status.MaxLimit = cfg.MaxLimit;
+                status.HighPrecision = cfg.HighPrecision;
+            }
+        }
+    }
+
     private static bool IsCommonChannel(int idx)
         => ChannelRegistry.All.TryGetValue(idx, out var def) && def.Group == ChannelGroup.Common;
 
@@ -458,6 +492,48 @@ public partial class MainViewModel : ObservableObject
         {
             // Не прерываем UI при кратковременной недоступности БД.
         }
+    }
+
+    private async Task PersistUiChannelConfigsAsync()
+    {
+        if (_suppressChannelConfigPersistence)
+            return;
+
+        var payload = new Dictionary<int, UiChannelConfigRecord>();
+        foreach (var def in ChannelRegistry.All.Values)
+        {
+            payload[def.Index] = new UiChannelConfigRecord
+            {
+                MinLimit = def.MinLimit,
+                MaxLimit = def.MaxLimit,
+                HighPrecision = def.HighPrecision
+            };
+        }
+
+        try
+        {
+            await _experimentService.SaveUiChannelConfigsAsync(payload);
+        }
+        catch
+        {
+            // Не прерываем UI при кратковременной недоступности БД.
+        }
+    }
+
+    public async Task TogglePostSelectionAsync(string postId)
+    {
+        var channels = GetPostChannels(postId);
+        if (channels.Count == 0)
+            return;
+
+        var hasUnselected = channels.Any(c => !c.IsSelected);
+
+        _suppressSelectionPersistence = true;
+        foreach (var ch in channels)
+            ch.IsSelected = hasUnselected;
+        _suppressSelectionPersistence = false;
+
+        await PersistChannelSelectionsAsync();
     }
 
     public IReadOnlyList<int> GetTransferCandidateIndices(string sourcePostId, IReadOnlyList<int> selectedRowIndices)
@@ -594,16 +670,49 @@ public partial class MainViewModel : ObservableObject
 
     private void OnChannelStatusPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_suppressSelectionPersistence)
-            return;
-
         if (sender is not ChannelStatus ch)
             return;
 
-        if (!string.Equals(e.PropertyName, nameof(ChannelStatus.IsSelected), StringComparison.Ordinal))
-            return;
+        if (string.Equals(e.PropertyName, nameof(ChannelStatus.IsSelected), StringComparison.Ordinal))
+        {
+            if (_suppressSelectionPersistence)
+                return;
 
-        _ = PersistChannelSelectionsAsync();
+            _ = PersistChannelSelectionsAsync();
+            return;
+        }
+
+        if (string.Equals(e.PropertyName, nameof(ChannelStatus.MinLimit), StringComparison.Ordinal) ||
+            string.Equals(e.PropertyName, nameof(ChannelStatus.MaxLimit), StringComparison.Ordinal) ||
+            string.Equals(e.PropertyName, nameof(ChannelStatus.HighPrecision), StringComparison.Ordinal))
+        {
+            if (_suppressChannelConfigPersistence)
+                return;
+
+            _suppressChannelConfigPersistence = true;
+            if (ChannelRegistry.All.TryGetValue(ch.ChannelIndex, out var def))
+            {
+                def.MinLimit = ch.MinLimit;
+                def.MaxLimit = ch.MaxLimit;
+                def.HighPrecision = ch.HighPrecision;
+            }
+
+            if (_channelMap.TryGetValue(ch.ChannelIndex, out var statuses))
+            {
+                foreach (var status in statuses)
+                {
+                    if (ReferenceEquals(status, ch))
+                        continue;
+
+                    status.MinLimit = ch.MinLimit;
+                    status.MaxLimit = ch.MaxLimit;
+                    status.HighPrecision = ch.HighPrecision;
+                }
+            }
+
+            _suppressChannelConfigPersistence = false;
+            _ = PersistUiChannelConfigsAsync();
+        }
     }
 
     // --- Поиск по постам ---
@@ -1271,6 +1380,8 @@ public interface IExperimentService
     Task SavePostChannelAssignmentsAsync(Dictionary<string, List<int>> assignments, CancellationToken ct = default);
     Task<Dictionary<string, List<int>>> LoadPostChannelSelectionsAsync(CancellationToken ct = default);
     Task SavePostChannelSelectionsAsync(Dictionary<string, List<int>> selections, CancellationToken ct = default);
+    Task<Dictionary<int, JSQ.Storage.UiChannelConfigRecord>> LoadUiChannelConfigsAsync(CancellationToken ct = default);
+    Task SaveUiChannelConfigsAsync(Dictionary<int, JSQ.Storage.UiChannelConfigRecord> configs, CancellationToken ct = default);
 }
 
 /// <summary>

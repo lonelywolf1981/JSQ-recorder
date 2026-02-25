@@ -117,6 +117,16 @@ public interface IExperimentRepository
     /// Загрузить пометки выбранных каналов по постам для UI.
     /// </summary>
     Task<Dictionary<string, List<int>>> GetPostChannelSelectionsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Сохранить UI-конфигурацию каналов (лимиты и high-precision).
+    /// </summary>
+    Task SaveUiChannelConfigsAsync(Dictionary<int, UiChannelConfigRecord> configs, CancellationToken ct = default);
+
+    /// <summary>
+    /// Загрузить UI-конфигурацию каналов (лимиты и high-precision).
+    /// </summary>
+    Task<Dictionary<int, UiChannelConfigRecord>> GetUiChannelConfigsAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -854,6 +864,60 @@ public class ExperimentRepository : IExperimentRepository
 
         return result;
     }
+
+    public async Task SaveUiChannelConfigsAsync(Dictionary<int, UiChannelConfigRecord> configs, CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+        using var tx = conn.BeginTransaction();
+
+        await conn.ExecuteAsync("DELETE FROM ui_channel_config;", transaction: tx);
+
+        const string sql = @"
+            INSERT INTO ui_channel_config (channel_index, min_limit, max_limit, high_precision, updated_at)
+            VALUES (@ChannelIndex, @MinLimit, @MaxLimit, @HighPrecision, @UpdatedAt);
+        ";
+
+        var now = JsqClock.NowIso();
+        foreach (var pair in configs.OrderBy(p => p.Key))
+        {
+            var idx = pair.Key;
+            var cfg = pair.Value;
+            await conn.ExecuteAsync(sql, new
+            {
+                ChannelIndex = idx,
+                MinLimit = cfg.MinLimit,
+                MaxLimit = cfg.MaxLimit,
+                HighPrecision = cfg.HighPrecision ? 1 : 0,
+                UpdatedAt = now
+            }, tx);
+        }
+
+        tx.Commit();
+    }
+
+    public async Task<Dictionary<int, UiChannelConfigRecord>> GetUiChannelConfigsAsync(CancellationToken ct = default)
+    {
+        using var conn = _dbService.GetConnection();
+
+        const string sql = @"
+            SELECT channel_index AS ChannelIndex,
+                   min_limit AS MinLimit,
+                   max_limit AS MaxLimit,
+                   high_precision AS HighPrecision
+            FROM ui_channel_config
+            ORDER BY channel_index;
+        ";
+
+        var rows = await conn.QueryAsync<UiChannelConfigRow>(sql);
+        return rows.ToDictionary(
+            r => r.ChannelIndex,
+            r => new UiChannelConfigRecord
+            {
+                MinLimit = r.MinLimit,
+                MaxLimit = r.MaxLimit,
+                HighPrecision = r.HighPrecision != 0
+            });
+    }
 }
 
 /// <summary>
@@ -879,6 +943,21 @@ internal class PostChannelAssignmentRow
 {
     public string PostId { get; set; } = string.Empty;
     public int ChannelIndex { get; set; }
+}
+
+internal class UiChannelConfigRow
+{
+    public int ChannelIndex { get; set; }
+    public double? MinLimit { get; set; }
+    public double? MaxLimit { get; set; }
+    public int HighPrecision { get; set; }
+}
+
+public class UiChannelConfigRecord
+{
+    public double? MinLimit { get; set; }
+    public double? MaxLimit { get; set; }
+    public bool HighPrecision { get; set; }
 }
 
 /// <summary>

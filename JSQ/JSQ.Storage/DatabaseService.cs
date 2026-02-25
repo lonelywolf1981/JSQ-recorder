@@ -174,6 +174,16 @@ public class SqliteDatabaseService : IDatabaseService
         ");
         await conn.ExecuteAsync("CREATE INDEX IF NOT EXISTS idx_post_channel_selection_post ON post_channel_selection(post_id);");
 
+        await conn.ExecuteAsync(@"
+            CREATE TABLE IF NOT EXISTS ui_channel_config (
+                channel_index INTEGER PRIMARY KEY,
+                min_limit REAL,
+                max_limit REAL,
+                high_precision INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+        ");
+
         var cfgColumns = (await conn.QueryAsync<TableInfoRow>("PRAGMA table_info(channel_config);")).ToList();
         if (!cfgColumns.Any(c => string.Equals(c.Name, "high_precision", StringComparison.OrdinalIgnoreCase)))
         {
@@ -465,6 +475,14 @@ public class SqliteDatabaseService : IDatabaseService
 
             CREATE INDEX IF NOT EXISTS idx_post_channel_selection_post
                 ON post_channel_selection(post_id);
+
+            CREATE TABLE IF NOT EXISTS ui_channel_config (
+                channel_index INTEGER PRIMARY KEY,
+                min_limit REAL,
+                max_limit REAL,
+                high_precision INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
         ";
         
         await conn.ExecuteAsync(sql);

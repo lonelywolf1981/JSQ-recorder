@@ -157,6 +157,18 @@ public class ExperimentService : IExperimentService, IDisposable
         await _experimentRepo.SavePostChannelSelectionsAsync(selections, ct);
     }
 
+    public async Task<Dictionary<int, UiChannelConfigRecord>> LoadUiChannelConfigsAsync(CancellationToken ct = default)
+    {
+        await _initTask;
+        return await _experimentRepo.GetUiChannelConfigsAsync(ct);
+    }
+
+    public async Task SaveUiChannelConfigsAsync(Dictionary<int, UiChannelConfigRecord> configs, CancellationToken ct = default)
+    {
+        await _initTask;
+        await _experimentRepo.SaveUiChannelConfigsAsync(configs, ct);
+    }
+
     public (string host, int port, ConnectionStatus status, DateTime lastPacketTime) GetConnectionSnapshot()
     {
         var stats = _captureService.Statistics;
