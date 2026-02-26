@@ -38,6 +38,18 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _updateCheckIntervalMinutes = 10;
 
+    [ObservableProperty]
+    private bool _isCheckingUpdateFeed;
+
+    [ObservableProperty]
+    private string _updateFeedCheckMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool _updateFeedCheckSuccess;
+
+    [ObservableProperty]
+    private bool _updateFeedCheckVisible;
+
     // --- Тест подключения ---
 
     [ObservableProperty]
@@ -195,14 +207,71 @@ public partial class SettingsViewModel : ObservableObject
 
     private bool CanTest() => !IsTesting && !string.IsNullOrWhiteSpace(TransmitterHost) && TransmitterPort > 0;
 
+    [RelayCommand(CanExecute = nameof(CanCheckUpdateFeed))]
+    private async Task CheckUpdateFeedAsync()
+    {
+        IsCheckingUpdateFeed = true;
+        UpdateFeedCheckVisible = false;
+        UpdateFeedCheckMessage = string.Empty;
+
+        var feedPath = (UpdateFeedPath ?? string.Empty).Trim();
+
+        try
+        {
+            var (success, message) = await Task.Run(() => CheckUpdateFeedPath(feedPath));
+            UpdateFeedCheckSuccess = success;
+            UpdateFeedCheckMessage = message;
+        }
+        catch (Exception ex)
+        {
+            UpdateFeedCheckSuccess = false;
+            UpdateFeedCheckMessage = $"Ошибка проверки: {ex.Message}";
+        }
+        finally
+        {
+            IsCheckingUpdateFeed = false;
+            UpdateFeedCheckVisible = true;
+        }
+    }
+
+    private static (bool success, string message) CheckUpdateFeedPath(string feedPath)
+    {
+        if (string.IsNullOrWhiteSpace(feedPath))
+            return (false, "Путь к обновлениям не задан");
+
+        if (!Directory.Exists(feedPath))
+            return (false, $"Папка недоступна: {feedPath}");
+
+        _ = Directory.GetFileSystemEntries(feedPath);
+
+        var manifestPath = Path.Combine(feedPath, "manifest.json");
+        if (!File.Exists(manifestPath))
+        {
+            return (true, $"Папка доступна: {feedPath}. manifest.json не найден");
+        }
+
+        return (true, $"Папка доступна: {feedPath}. manifest.json найден");
+    }
+
+    private bool CanCheckUpdateFeed() => !IsTesting && !IsCheckingUpdateFeed;
+
     partial void OnIsTestingChanged(bool value)
     {
+        TestConnectionCommand.NotifyCanExecuteChanged();
+        CheckUpdateFeedCommand.NotifyCanExecuteChanged();
+        SaveCommand.NotifyCanExecuteChanged();
+        CancelCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsCheckingUpdateFeedChanged(bool value)
+    {
+        CheckUpdateFeedCommand.NotifyCanExecuteChanged();
         TestConnectionCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
     }
 
-    private bool CanSaveOrCancel() => !IsTesting;
+    private bool CanSaveOrCancel() => !IsTesting && !IsCheckingUpdateFeed;
 
     [RelayCommand(CanExecute = nameof(CanSaveOrCancel))]
     private void Save()
@@ -211,6 +280,7 @@ public partial class SettingsViewModel : ObservableObject
         TransmitterHost = (TransmitterHost ?? string.Empty).Trim();
         DatabasePath = (DatabasePath ?? string.Empty).Trim();
         ExportPath = (ExportPath ?? string.Empty).Trim();
+        UpdateFeedPath = (UpdateFeedPath ?? string.Empty).Trim();
 
         SaveToFile();
         Saved = true;

@@ -140,6 +140,8 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Автообновление:" VerticalAlignment="Center" Margin="0,4"/>
@@ -154,6 +156,51 @@
                 <TextBox   Grid.Row="2" Grid.Column="1"
                            Text="{Binding UpdateCheckIntervalMinutes, UpdateSourceTrigger=PropertyChanged}"
                            Margin="0,4"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Проверка папки:" VerticalAlignment="Center" Margin="0,4"/>
+                <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+                    <Button Content="Проверить папку"
+                            Command="{Binding CheckUpdateFeedCommand}"
+                            Padding="14,4" Margin="0,0,8,0"/>
+                    <TextBlock Text="Проверяю..." VerticalAlignment="Center"
+                               Foreground="Gray" FontStyle="Italic"
+                               Visibility="{Binding IsCheckingUpdateFeed, Converter={StaticResource BoolToVis}}"/>
+                </StackPanel>
+
+                <Border Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,6,0,0" Padding="8,5" CornerRadius="3"
+                        Visibility="{Binding UpdateFeedCheckVisible, Converter={StaticResource BoolToVis}}">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding UpdateFeedCheckSuccess}" Value="True">
+                                    <Setter Property="Background" Value="#E8F5E9"/>
+                                    <Setter Property="BorderBrush" Value="#4CAF50"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding UpdateFeedCheckSuccess}" Value="False">
+                                    <Setter Property="Background" Value="#FFEBEE"/>
+                                    <Setter Property="BorderBrush" Value="#F44336"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="{Binding UpdateFeedCheckMessage}" TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding UpdateFeedCheckSuccess}" Value="True">
+                                        <Setter Property="Foreground" Value="#2E7D32"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding UpdateFeedCheckSuccess}" Value="False">
+                                        <Setter Property="Foreground" Value="#C62828"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
             </Grid>
         </GroupBox>
 
