@@ -806,7 +806,7 @@
             </StatusBarItem>
             <Separator/>
             <StatusBarItem>
-                <TextBlock Text="JSQ v0.2.0"/>
+                <TextBlock Text="{Binding AppVersionText}"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -89,6 +90,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUpdatePrompt))]
     private string _updatePromptMessage = string.Empty;
+
+    public string AppVersionText => $"JSQ v{ResolveAppVersion()}";
 
     public bool HasUpdatePrompt => !string.IsNullOrWhiteSpace(UpdatePromptMessage);
 
@@ -202,6 +205,20 @@ public partial class MainViewModel : ObservableObject
 
     private static string NormalizeHost(string? host)
         => (host ?? string.Empty).Trim();
+
+    private static string ResolveAppVersion()
+    {
+        var asm = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+        var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (info is string infoValue && !string.IsNullOrWhiteSpace(infoValue))
+            return infoValue;
+
+        var fileVersion = asm.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
+        if (fileVersion is string fileValue && !string.IsNullOrWhiteSpace(fileValue))
+            return fileValue;
+
+        return asm.GetName().Version?.ToString() ?? "0.0.0";
+    }
 
     private Task<(bool handled, bool success, string message)> ProbeCurrentConnectionAsync(
         string host,
