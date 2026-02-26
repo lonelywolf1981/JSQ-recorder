@@ -103,3 +103,34 @@ backups/
 lib/
 libs/
 vendor/
+
+# === Локальные служебные/исследовательские файлы ===
+.claude/
+AGENTS.md
+CHANNEL_SPEC.md
+CLAUDE.md
+FULL_APP_TODO.md
+IMPLEMENTATION_PLAN.md
+PROTOCOL_ANALYSIS.md
+QWEN.md
+TODO_FIXES.md
+analyze_dbf.py
+analyze_traffic.ps1
+analyze_xlsx.py
+build_debug_qwen.bat
+sensor_emulator_tui.py
+error.png
+error2.png
+error3.png
+screen.png
+version.png
+out.xlsx
+trace*.etl
+trace*.csv
+trace*.txt
+trace_report_known_findings.md
+
+# === Локальные БД приложения ===
+*.db
+*.db-wal
+*.db-shm
