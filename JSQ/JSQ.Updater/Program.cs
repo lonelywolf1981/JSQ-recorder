@@ -42,6 +42,9 @@ internal static class Program
             foreach (var source in sourceFiles)
             {
                 var rel = source.Substring(stagingRoot.Length).TrimStart(Path.DirectorySeparatorChar);
+                if (ShouldSkipPackageFile(rel))
+                    continue;
+
                 var target = Path.Combine(installRoot, rel);
 
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -147,5 +150,19 @@ internal static class Program
         {
             // Временные данные очистятся при следующем запуске.
         }
+    }
+
+    private static bool ShouldSkipPackageFile(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+            return false;
+
+        var normalized = relativePath.Replace('\\', '/').TrimStart('/');
+        if (!normalized.StartsWith("data/", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return normalized.EndsWith(".db", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith(".db-wal", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith(".db-shm", StringComparison.OrdinalIgnoreCase);
     }
 }
