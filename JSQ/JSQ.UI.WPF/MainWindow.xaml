@@ -262,6 +262,8 @@
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
                                   PreviewMouseRightButtonDown="ChannelGrid_PreviewMouseRightButtonDown"
                                   MouseMove="ChannelGrid_MouseMove"
+                                  DragOver="ChannelGrid_DragOver"
+                                  DragLeave="ChannelGrid_DragLeave"
                                   Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>
@@ -388,6 +390,8 @@
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
                                   PreviewMouseRightButtonDown="ChannelGrid_PreviewMouseRightButtonDown"
                                   MouseMove="ChannelGrid_MouseMove"
+                                  DragOver="ChannelGrid_DragOver"
+                                  DragLeave="ChannelGrid_DragLeave"
                                   Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>
@@ -514,6 +518,8 @@
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
                                   PreviewMouseRightButtonDown="ChannelGrid_PreviewMouseRightButtonDown"
                                   MouseMove="ChannelGrid_MouseMove"
+                                  DragOver="ChannelGrid_DragOver"
+                                  DragLeave="ChannelGrid_DragLeave"
                                   Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
                             <DataGrid.Columns>

@@ -361,11 +361,12 @@ public partial class MainViewModel : ObservableObject
     {
         InitializeDefaultChannelAssignment();
 
-        var movableByPost = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase)
+        // List (не HashSet) — сохраняем порядок из файла настроек
+        var movableByPost = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase)
         {
-            ["A"] = new HashSet<int>(),
-            ["B"] = new HashSet<int>(),
-            ["C"] = new HashSet<int>()
+            ["A"] = new List<int>(),
+            ["B"] = new List<int>(),
+            ["C"] = new List<int>()
         };
 
         var used = new HashSet<int>();
@@ -414,7 +415,7 @@ public partial class MainViewModel : ObservableObject
             foreach (var idx in toRemove)
                 RemoveChannelStatus(idx, postId);
 
-            foreach (var idx in movableByPost[postId].OrderBy(v => v))
+            foreach (var idx in movableByPost[postId])   // порядок из сохранённых настроек
             {
                 if (!ChannelRegistry.All.TryGetValue(idx, out var def))
                     continue;
@@ -490,27 +491,14 @@ public partial class MainViewModel : ObservableObject
 
     private async Task PersistChannelAssignmentsAsync()
     {
+        // Сохраняем в ТЕКУЩЕМ порядке отображения — именно так
+        // восстановится пользовательская сортировка при следующем запуске.
         var payload = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase)
         {
-            ["A"] = new List<int>(),
-            ["B"] = new List<int>(),
-            ["C"] = new List<int>()
+            ["A"] = GetPostChannels("A").Where(c => IsMovableChannel(c.ChannelIndex)).Select(c => c.ChannelIndex).Distinct().ToList(),
+            ["B"] = GetPostChannels("B").Where(c => IsMovableChannel(c.ChannelIndex)).Select(c => c.ChannelIndex).Distinct().ToList(),
+            ["C"] = GetPostChannels("C").Where(c => IsMovableChannel(c.ChannelIndex)).Select(c => c.ChannelIndex).Distinct().ToList()
         };
-
-        foreach (var kvp in _channelPostAssignment)
-        {
-            if (!IsMovableChannel(kvp.Key))
-                continue;
-
-            foreach (var postId in kvp.Value)
-            {
-                if (payload.TryGetValue(postId, out var list))
-                    list.Add(kvp.Key);
-            }
-        }
-
-        foreach (var postId in payload.Keys.ToList())
-            payload[postId] = payload[postId].Distinct().OrderBy(v => v).ToList();
 
         try
         {
@@ -676,6 +664,70 @@ public partial class MainViewModel : ObservableObject
         StatusMessage =
             $"Перенесено {selected.Count} каналов: {sourcePostId} -> {targetPostId}" +
             (skippedCommon > 0 ? $" (пропущено общих: {skippedCommon})" : string.Empty);
+    }
+
+    /// <summary>
+    /// Перемещает каналы внутри поста на новую позицию (drag-and-drop внутри грида).
+    /// <paramref name="insertBeforeChannelIndex"/> — ChannelIndex строки, ПЕРЕД которой
+    /// нужно вставить; -1 = вставить в конец списка.
+    /// </summary>
+    public async Task ReorderChannelsAsync(
+        string postId,
+        IReadOnlyList<int> channelIndices,
+        int insertBeforeChannelIndex)
+    {
+        if (IsAnyPostRunning)
+        {
+            StatusMessage = "Нельзя менять порядок каналов во время активной записи";
+            return;
+        }
+
+        var channels = GetPostChannels(postId);
+
+        // Разрешаем перемещать только не-общие каналы
+        var toMoveIndices = channelIndices
+            .Where(IsMovableChannel)
+            .Distinct()
+            .ToList();
+
+        if (toMoveIndices.Count == 0)
+            return;
+
+        var toMoveItems = toMoveIndices
+            .Select(idx => channels.FirstOrDefault(c => c.ChannelIndex == idx))
+            .Where(c => c != null)
+            .Select(c => c!)
+            .ToList();
+
+        if (toMoveItems.Count == 0)
+            return;
+
+        // Запоминаем целевой элемент ДО удаления (его индекс в коллекции изменится)
+        var insertBeforeItem = insertBeforeChannelIndex >= 0
+            ? channels.FirstOrDefault(c => c.ChannelIndex == insertBeforeChannelIndex)
+            : null;
+
+        foreach (var item in toMoveItems)
+            channels.Remove(item);
+
+        // Пересчитываем позицию вставки после удаления элементов
+        int insertAt;
+        if (insertBeforeItem != null && channels.Contains(insertBeforeItem))
+            insertAt = channels.IndexOf(insertBeforeItem);
+        else
+            insertAt = channels.Count;
+
+        // Не позволяем переместить элемент выше общих каналов
+        int firstNonCommon = 0;
+        while (firstNonCommon < channels.Count && channels[firstNonCommon].IsCommon)
+            firstNonCommon++;
+        insertAt = Math.Max(insertAt, firstNonCommon);
+
+        for (int i = 0; i < toMoveItems.Count; i++)
+            channels.Insert(Math.Min(insertAt + i, channels.Count), toMoveItems[i]);
+
+        ApplyPostFilter(postId);
+        await PersistChannelAssignmentsAsync();
     }
 
     private ChannelStatus CreateChannelStatus(int idx, ChannelDefinition def, string postId) =>

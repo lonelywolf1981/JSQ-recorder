@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using JSQ.Core.Models;
@@ -21,6 +23,7 @@ public partial class MainWindow : Window
     private Point _dragStartPoint;
     private bool _isLogsVisible = true;
     private GridLength _savedLogsHeight = new(180);
+    private readonly Dictionary<DataGrid, DropLineAdorner> _dropAdorners = new();
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -251,8 +254,10 @@ public partial class MainWindow : Window
 
     private async void ChannelGrid_Drop(object sender, DragEventArgs e)
     {
-        if (sender is not DataGrid targetGrid)
+        if (!(sender is DataGrid targetGrid))
             return;
+
+        HideDropAdorner(targetGrid);
 
         var targetPostId = ResolvePostIdByGrid(targetGrid);
         if (targetPostId == null)
@@ -267,12 +272,139 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(sourcePostId) || indices == null || indices.Length == 0)
             return;
 
-        var sourcePost = sourcePostId!;
         var vm = (MainViewModel)DataContext;
         if (vm.IsAnyPostRunning)
             return;
 
-        await vm.TransferChannelsAsync(sourcePost, targetPostId, indices);
+        if (string.Equals(sourcePostId, targetPostId, StringComparison.OrdinalIgnoreCase))
+        {
+            // Drag внутри одного поста → меняем порядок
+            var insertBefore = GetDropTargetChannelIndex(targetGrid, e.GetPosition(targetGrid));
+            await vm.ReorderChannelsAsync(targetPostId, indices, insertBefore);
+            return;
+        }
+
+        await vm.TransferChannelsAsync(sourcePostId, targetPostId, indices);
+    }
+
+    private void ChannelGrid_DragOver(object sender, DragEventArgs e)
+    {
+        if (!(sender is DataGrid grid))
+            return;
+
+        if (!e.Data.GetDataPresent("JSQ.TransferSourcePost"))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+
+        // Индикатор вставки только для drag внутри одного поста
+        var sourcePost = e.Data.GetData("JSQ.TransferSourcePost") as string;
+        var targetPost = ResolvePostIdByGrid(grid);
+        if (!string.Equals(sourcePost, targetPost, StringComparison.OrdinalIgnoreCase))
+        {
+            HideDropAdorner(grid);
+            return;
+        }
+
+        var dropPos = e.GetPosition(grid);
+        ShowDropAdorner(grid, ComputeDropLineY(grid, dropPos));
+    }
+
+    private void ChannelGrid_DragLeave(object sender, DragEventArgs e)
+    {
+        if (!(sender is DataGrid grid))
+            return;
+
+        // Скрываем только когда мышь действительно вышла за границу грида
+        var pos = e.GetPosition(grid);
+        if (pos.X >= 0 && pos.Y >= 0 && pos.X <= grid.ActualWidth && pos.Y <= grid.ActualHeight)
+            return;
+
+        HideDropAdorner(grid);
+    }
+
+    // ── Drop-line adorner ─────────────────────────────────────────────────────
+
+    private void ShowDropAdorner(DataGrid grid, double y)
+    {
+        if (!_dropAdorners.TryGetValue(grid, out var adorner))
+        {
+            var layer = AdornerLayer.GetAdornerLayer(grid);
+            if (layer == null)
+                return;
+            adorner = new DropLineAdorner(grid);
+            layer.Add(adorner);
+            _dropAdorners[grid] = adorner;
+        }
+        adorner.UpdatePosition(y);
+    }
+
+    private void HideDropAdorner(DataGrid grid)
+    {
+        if (_dropAdorners.TryGetValue(grid, out var adorner))
+            adorner.Hide();
+    }
+
+    private static double ComputeDropLineY(DataGrid grid, Point dropPos)
+    {
+        var hit = VisualTreeHelper.HitTest(grid, dropPos);
+        if (hit == null)
+            return dropPos.Y;
+
+        DependencyObject obj = hit.VisualHit;
+        while (obj != null && !(obj is DataGridRow))
+            obj = VisualTreeHelper.GetParent(obj);
+
+        if (!(obj is DataGridRow row))
+            return dropPos.Y;
+
+        var rowTop = row.TranslatePoint(new Point(0, 0), grid).Y;
+        var relY = dropPos.Y - rowTop;
+
+        // Верхняя половина → линия над строкой, нижняя → под строкой
+        return relY > row.ActualHeight / 2.0 ? rowTop + row.ActualHeight : rowTop;
+    }
+
+    /// <summary>
+    /// Определяет ChannelIndex строки, ПЕРЕД которой нужно вставить перетаскиваемые элементы.
+    /// Возвращает -1 если нужно добавить в конец (дроп в пустую зону или на нижнюю половину последней строки).
+    /// </summary>
+    private static int GetDropTargetChannelIndex(DataGrid grid, Point dropPos)
+    {
+        var hit = VisualTreeHelper.HitTest(grid, dropPos);
+        if (hit == null)
+            return -1;
+
+        DependencyObject obj = hit.VisualHit;
+        while (obj != null && !(obj is DataGridRow))
+            obj = VisualTreeHelper.GetParent(obj);
+
+        if (!(obj is DataGridRow row) || !(row.Item is ChannelStatus ch))
+            return -1;
+
+        var rowTop = row.TranslatePoint(new Point(0, 0), grid).Y;
+        var relY = dropPos.Y - rowTop;
+
+        if (relY > row.ActualHeight / 2.0)
+        {
+            // Нижняя половина строки → вставить ПОСЛЕ неё
+            // Ищем следующую строку в источнике данных
+            if (grid.ItemsSource is System.Collections.IEnumerable src)
+            {
+                var items = src.Cast<ChannelStatus>().ToList();
+                var pos = items.IndexOf(ch);
+                if (pos >= 0 && pos + 1 < items.Count)
+                    return items[pos + 1].ChannelIndex;
+            }
+            return -1; // в конец
+        }
+
+        return ch.ChannelIndex; // вставить перед этой строкой
     }
 
     private string? ResolvePostIdByGrid(DataGrid grid)
@@ -438,5 +570,47 @@ public partial class MainWindow : Window
         public int OriginalIndex { get; set; }
         public int DisplayIndex { get; set; }
         public double Width { get; set; }
+    }
+
+    // ── Визуальный индикатор позиции вставки ─────────────────────────────────
+
+    private sealed class DropLineAdorner : Adorner
+    {
+        private static readonly Pen LinePen;
+        private double _y = -1;
+
+        static DropLineAdorner()
+        {
+            LinePen = new Pen(new SolidColorBrush(Color.FromRgb(0x42, 0x85, 0xF4)), 2);
+            LinePen.Freeze();
+        }
+
+        public DropLineAdorner(UIElement adornedElement) : base(adornedElement)
+        {
+            IsHitTestVisible = false;
+        }
+
+        public void UpdatePosition(double y)
+        {
+            _y = y;
+            InvalidateVisual();
+        }
+
+        public void Hide()
+        {
+            _y = -1;
+            InvalidateVisual();
+        }
+
+        protected override void OnRender(DrawingContext dc)
+        {
+            if (_y < 0)
+                return;
+
+            var w = AdornedElement.RenderSize.Width;
+            dc.DrawLine(LinePen, new Point(0, _y), new Point(w, _y));
+            dc.DrawEllipse(LinePen.Brush, null, new Point(5, _y), 4, 4);
+            dc.DrawEllipse(LinePen.Brush, null, new Point(w - 5, _y), 4, 4);
+        }
     }
 }
