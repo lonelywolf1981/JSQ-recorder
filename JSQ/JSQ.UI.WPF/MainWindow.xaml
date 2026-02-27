@@ -65,6 +65,15 @@
         <!-- ── Контекстное меню: пометить строку цветом ────────────────────── -->
         <ContextMenu x:Key="ChannelColorMenu">
             <MenuItem Header="Пометить цветом">
+                <MenuItem Click="HighlightCustomColor_Click">
+                    <MenuItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🎨" Width="16" TextAlignment="Center" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Произвольный цвет..." VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </MenuItem.Header>
+                </MenuItem>
+                <Separator/>
                 <MenuItem Tag="#FFF59D"  Click="HighlightColor_Click">
                     <MenuItem.Header><StackPanel Orientation="Horizontal">
                         <Rectangle Width="16" Height="16" Fill="#FFF59D"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>

@@ -12,8 +12,10 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Globalization;
 using JSQ.Core.Models;
 using JSQ.UI.WPF.ViewModels;
+using WinForms = System.Windows.Forms;
 
 namespace JSQ.UI.WPF;
 
@@ -196,23 +198,97 @@ public partial class MainWindow : Window
     /// </summary>
     private void HighlightColor_Click(object sender, RoutedEventArgs e)
     {
-        if (!(sender is MenuItem menuItem))
+        if (!TryResolveContextGrid(sender, out var grid))
             return;
 
-        // Поднимаемся по логическому дереву до ContextMenu
-        DependencyObject parent = menuItem;
-        while (parent != null && !(parent is ContextMenu))
-            parent = LogicalTreeHelper.GetParent(parent);
-
-        var grid = (parent as ContextMenu)?.PlacementTarget as DataGrid;
-        if (grid == null)
-            return;
-
+        var menuItem = (MenuItem)sender;
         var color = menuItem.Tag as string;
         var colorValue = string.IsNullOrEmpty(color) ? null : color;
 
         foreach (var ch in grid.SelectedItems.OfType<ChannelStatus>())
             ch.RowHighlightColor = colorValue;
+    }
+
+    private void HighlightCustomColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (!TryResolveContextGrid(sender, out var grid))
+            return;
+
+        var selected = grid.SelectedItems.OfType<ChannelStatus>().ToList();
+        if (selected.Count == 0)
+            return;
+
+        var initialHex = selected
+            .Select(ch => ch.RowHighlightColor)
+            .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+        var initialColor = TryParseHexColor(initialHex, out var parsedColor)
+            ? parsedColor
+            : System.Drawing.Color.White;
+
+        using var dialog = new WinForms.ColorDialog
+        {
+            AllowFullOpen = true,
+            AnyColor = true,
+            FullOpen = true,
+            Color = initialColor
+        };
+
+        if (dialog.ShowDialog() != WinForms.DialogResult.OK)
+            return;
+
+        var selectedColor = dialog.Color;
+        var hex = $"#{selectedColor.R:X2}{selectedColor.G:X2}{selectedColor.B:X2}";
+
+        foreach (var ch in selected)
+            ch.RowHighlightColor = hex;
+    }
+
+    private static bool TryResolveContextGrid(object sender, out DataGrid grid)
+    {
+        grid = null!;
+
+        if (sender is not MenuItem menuItem)
+            return false;
+
+        DependencyObject parent = menuItem;
+        while (parent != null && parent is not System.Windows.Controls.ContextMenu)
+            parent = LogicalTreeHelper.GetParent(parent);
+
+        var resolvedGrid = (parent as System.Windows.Controls.ContextMenu)?.PlacementTarget as DataGrid;
+        if (resolvedGrid == null)
+            return false;
+
+        grid = resolvedGrid;
+        return true;
+    }
+
+    private static bool TryParseHexColor(string? hex, out System.Drawing.Color color)
+    {
+        color = System.Drawing.Color.Empty;
+
+        if (hex is null)
+            return false;
+
+        var value = hex.Trim();
+        if (value.Length == 0)
+            return false;
+
+        if (value.StartsWith("#", StringComparison.Ordinal))
+            value = value.Substring(1);
+
+        if (value.Length != 6)
+            return false;
+
+        if (!byte.TryParse(value.Substring(0, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r))
+            return false;
+        if (!byte.TryParse(value.Substring(2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g))
+            return false;
+        if (!byte.TryParse(value.Substring(4, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
+            return false;
+
+        color = System.Drawing.Color.FromArgb(r, g, b);
+        return true;
     }
 
     private void ChannelGrid_MouseMove(object sender, MouseEventArgs e)

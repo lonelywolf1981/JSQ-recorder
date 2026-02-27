@@ -31,6 +31,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\JSQ.Core\JSQ.Core.csproj" />
     <ProjectReference Include="..\JSQ.Capture\JSQ.Capture.csproj" />
     <ProjectReference Include="..\JSQ.Decode\JSQ.Decode.csproj" />
