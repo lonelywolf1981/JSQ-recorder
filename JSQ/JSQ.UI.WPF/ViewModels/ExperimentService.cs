@@ -76,7 +76,17 @@ public class ExperimentService : IExperimentService, IDisposable
         _captureService.DataReceived += OnDataReceived;
         _captureService.StatusChanged += OnStatusChanged;
 
-        _initTask = Task.Run(async () => { try { await _dbService.InitializeAsync(); } catch { } });
+        // Не глотаем исключение: если БД не инициализируется, все последующие await _initTask
+        // немедленно упадут с диагностичной ошибкой вместо молчаливых сбоев запросов.
+        _initTask = Task.Run(async () =>
+        {
+            try { await _dbService.InitializeAsync(); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[JSQ] DB init failed: {ex.Message}");
+                throw;
+            }
+        });
 
         StartHealthUpdates();
     }
@@ -584,6 +594,9 @@ public class ExperimentService : IExperimentService, IDisposable
 
         foreach (var (postId, state, samples) in routes)
         {
+            // Запись сырых сэмплов в БД (включая невалидные -99.0 для полноты истории)
+            _batchWriter.AddSamples(state.Experiment.Id, samples);
+
             foreach (var sample in samples)
             {
                 state.AggregationService.AddSample(sample);
@@ -618,7 +631,10 @@ public class ExperimentService : IExperimentService, IDisposable
                 try
                 {
                     await Task.Delay(5000).ConfigureAwait(false);
-                    if (!(cts?.Token.IsCancellationRequested ?? true))
+                    bool cancelled;
+                    try { cancelled = cts?.Token.IsCancellationRequested ?? true; }
+                    catch (ObjectDisposedException) { cancelled = true; }
+                    if (!cancelled)
                         BeginMonitoring();
                 }
                 catch { }

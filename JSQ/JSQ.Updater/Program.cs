@@ -6,85 +6,195 @@ using System.IO.Compression;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace JSQ.Updater;
 
 internal static class Program
 {
+    [STAThread]
     private static int Main(string[] args)
     {
+        // Объявляем ДО try — чтобы finally имел доступ при любом исходе
+        string statePath   = string.Empty;
+        string restartPath = string.Empty;
+        int    exitCode    = 1;
+
         try
         {
             var map = ParseArgs(args);
 
             var installRoot = Require(map, "installRoot");
             var packagePath = Require(map, "packagePath");
-            var expectedSha = map.TryGetValue("sha256", out var sha) ? sha : string.Empty;
-            var restartExe = map.TryGetValue("restartExe", out var restart) ? restart : "JSQ.UI.WPF.exe";
-            var statePath = map.TryGetValue("statePath", out var state) ? state : string.Empty;
+            var expectedSha = map.TryGetValue("sha256",     out var sha) ? sha : string.Empty;
+            var restartExe  = map.TryGetValue("restartExe", out var rx)  ? rx  : "JSQ.UI.WPF.exe";
+            statePath       = map.TryGetValue("statePath",  out var sp)  ? sp  : string.Empty;
+            restartPath     = Path.Combine(installRoot, restartExe);
 
-            if (map.TryGetValue("waitPid", out var pidText) && int.TryParse(pidText, out var pid) && pid > 0)
-                WaitForProcessExit(pid, TimeSpan.FromSeconds(45));
+            var waitPid = 0;
+            if (map.TryGetValue("waitPid", out var pidText))
+                int.TryParse(pidText, out waitPid);
 
-            if (!ValidateHash(packagePath, expectedSha))
-                return 2;
+            // Версия для отображения: "update-1.2.3.zip" → "v1.2.3"
+            var version = ParseVersionFromPackagePath(packagePath);
 
-            var updaterRoot = Path.Combine(installRoot, ".jsq_updater");
-            var stagingRoot = Path.Combine(updaterRoot, "staging", Guid.NewGuid().ToString("N"));
-            var backupRoot = Path.Combine(updaterRoot, "backup", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
 
-            Directory.CreateDirectory(stagingRoot);
-            Directory.CreateDirectory(backupRoot);
+            var form = new UpdateProgressForm(version);
 
-            ZipFile.ExtractToDirectory(packagePath, stagingRoot);
-
-            var sourceFiles = Directory.GetFiles(stagingRoot, "*", SearchOption.AllDirectories);
-            foreach (var source in sourceFiles)
+            // Запускаем работу из события Load — к этому моменту Handle создан
+            // и BeginInvoke/Invoke работают корректно.
+            form.Load += (_, __) =>
             {
-                var rel = source.Substring(stagingRoot.Length).TrimStart(Path.DirectorySeparatorChar);
-                if (ShouldSkipPackageFile(rel))
-                    continue;
-
-                var target = Path.Combine(installRoot, rel);
-
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-
-                if (File.Exists(target))
+                var worker = new Thread(() =>
                 {
-                    var backup = Path.Combine(backupRoot, rel);
-                    Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
-                    File.Copy(target, backup, overwrite: true);
-                }
+                    try
+                    {
+                        exitCode = RunUpdate(installRoot, packagePath, expectedSha, waitPid, form);
+                    }
+                    catch
+                    {
+                        exitCode = 1;
+                    }
+                    finally
+                    {
+                        // Показываем итоговое сообщение на 900 мс, потом закрываем форму
+                        var msg = exitCode == 0
+                            ? "Готово. Запуск приложения..."
+                            : "Ошибка обновления. Запуск предыдущей версии...";
+                        var prog = exitCode == 0 ? 100 : -1;
 
-                if (string.Equals(Path.GetFileName(target), "JSQ.Updater.exe", StringComparison.OrdinalIgnoreCase))
-                    continue;
+                        form.SetStatus(msg, prog);
 
-                File.Copy(source, target, overwrite: true);
-            }
-
-            TryDeleteDirectory(stagingRoot);
-
-            if (!string.IsNullOrWhiteSpace(statePath) && File.Exists(statePath))
-                File.Delete(statePath);
-
-            var restartPath = Path.Combine(installRoot, restartExe);
-            if (File.Exists(restartPath))
-            {
-                Process.Start(new ProcessStartInfo
+                        Thread.Sleep(900);
+                        form.BeginInvoke(new Action(form.Close));
+                    }
+                })
                 {
-                    FileName = restartPath,
-                    WorkingDirectory = installRoot,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                });
-            }
+                    IsBackground = true,
+                    Name = "UpdateWorker"
+                };
+                worker.Start();
+            };
 
-            return 0;
+            Application.Run(form);   // ← блокирует до закрытия формы
         }
         catch
         {
-            return 1;
+            exitCode = 1;
         }
+        finally
+        {
+            // ВСЕГДА удаляем state-файл — иначе при любой ошибке приложение
+            // входит в бесконечный цикл: запуск → Shutdown → апдейтер падает → повтор
+            if (!string.IsNullOrWhiteSpace(statePath) && File.Exists(statePath))
+                try { File.Delete(statePath); } catch { }
+
+            // ВСЕГДА запускаем приложение — при ошибке стартуют старые файлы,
+            // что лучше чем не запуститься вообще
+            if (!string.IsNullOrWhiteSpace(restartPath) && File.Exists(restartPath))
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName         = restartPath,
+                        WorkingDirectory = Path.GetDirectoryName(restartPath)!,
+                        UseShellExecute  = false,
+                        CreateNoWindow   = true
+                    });
+                }
+                catch { }
+        }
+
+        return exitCode;
+    }
+
+    // ─── Основная логика обновления ──────────────────────────────────────────
+
+    private static int RunUpdate(
+        string installRoot,
+        string packagePath,
+        string expectedSha,
+        int    waitPid,
+        UpdateProgressForm form)
+    {
+        // Шаг 1: ждём завершения основного процесса
+        if (waitPid > 0)
+        {
+            form.SetStatus("Ожидание завершения приложения...", 5);
+            WaitForProcessExit(waitPid, TimeSpan.FromSeconds(45));
+        }
+
+        // Шаг 2: проверяем целостность архива
+        form.SetStatus("Проверка целостности архива...", 20);
+        if (!ValidateHash(packagePath, expectedSha))
+            return 2;
+
+        // Шаг 3: распаковка во временную папку
+        form.SetStatus("Распаковка архива...", 35);
+        var updaterRoot = Path.Combine(installRoot, ".jsq_updater");
+        var stagingRoot = Path.Combine(updaterRoot, "staging", Guid.NewGuid().ToString("N"));
+        var backupRoot  = Path.Combine(updaterRoot, "backup",  DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+
+        Directory.CreateDirectory(stagingRoot);
+        Directory.CreateDirectory(backupRoot);
+        ZipFile.ExtractToDirectory(packagePath, stagingRoot);
+
+        // Шаг 4: копируем файлы из staging в installRoot
+        var sourceFiles = Directory.GetFiles(stagingRoot, "*", SearchOption.AllDirectories);
+        int total  = sourceFiles.Length;
+        int copied = 0;
+
+        foreach (var source in sourceFiles)
+        {
+            copied++;
+
+            // Прогресс от 50% до 90% пропорционально числу файлов
+            var progress = total > 0
+                ? 50 + (int)((double)copied / total * 40)
+                : 50;
+            form.SetStatus($"Копирование файлов...  {copied} / {total}", progress);
+
+            var rel = source.Substring(stagingRoot.Length).TrimStart(Path.DirectorySeparatorChar);
+
+            if (ShouldSkipPackageFile(rel))
+                continue;
+
+            var target = Path.Combine(installRoot, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+            // Бэкап существующего файла
+            if (File.Exists(target))
+            {
+                var backup = Path.Combine(backupRoot, rel);
+                Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
+                File.Copy(target, backup, overwrite: true);
+            }
+
+            // Сам апдейтер не перезаписываем — он сейчас запущен
+            if (string.Equals(Path.GetFileName(target), "JSQ.Updater.exe", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            File.Copy(source, target, overwrite: true);
+        }
+
+        // Шаг 5: очистка временных файлов
+        form.SetStatus("Очистка временных файлов...", 95);
+        TryDeleteDirectory(stagingRoot);
+
+        return 0;
+    }
+
+    // ─── Вспомогательные методы ──────────────────────────────────────────────
+
+    private static string ParseVersionFromPackagePath(string packagePath)
+    {
+        var name   = Path.GetFileNameWithoutExtension(packagePath ?? string.Empty);
+        const string prefix = "update-";
+        return name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? "v" + name.Substring(prefix.Length)
+            : string.Empty;
     }
 
     private static Dictionary<string, string> ParseArgs(string[] args)
@@ -95,8 +205,7 @@ internal static class Program
             var key = args[i];
             if (!key.StartsWith("--", StringComparison.Ordinal))
                 continue;
-
-            var name = key.Substring(2);
+            var name  = key.Substring(2);
             var value = i + 1 < args.Length ? args[i + 1] : string.Empty;
             map[name] = value;
             i++;
@@ -121,9 +230,8 @@ internal static class Program
         }
         catch
         {
-            // Процесс уже завершился.
+            // Процесс уже завершился — это нормально.
         }
-
         Thread.Sleep(300);
     }
 
@@ -133,8 +241,8 @@ internal static class Program
             return true;
 
         using var stream = File.OpenRead(filePath);
-        using var sha = SHA256.Create();
-        var hash = sha.ComputeHash(stream);
+        using var sha    = SHA256.Create();
+        var hash   = sha.ComputeHash(stream);
         var actual = BitConverter.ToString(hash).Replace("-", string.Empty);
         return string.Equals(actual, expectedSha.Trim(), StringComparison.OrdinalIgnoreCase);
     }
@@ -161,7 +269,7 @@ internal static class Program
         if (!normalized.StartsWith("data/", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        return normalized.EndsWith(".db", StringComparison.OrdinalIgnoreCase)
+        return normalized.EndsWith(".db",     StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith(".db-wal", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith(".db-shm", StringComparison.OrdinalIgnoreCase);
     }

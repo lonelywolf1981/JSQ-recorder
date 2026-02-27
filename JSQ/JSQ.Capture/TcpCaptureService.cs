@@ -104,9 +104,12 @@ public class TcpCaptureService : ITcpCaptureService
     
     public async Task ConnectAsync(string host, int port, CancellationToken ct = default)
     {
-        if (Status == ConnectionStatus.Connected)
+        // Защита от двойного подключения: и Connected, и Connecting считаются занятыми.
+        // Без этой проверки параллельные вызовы (авто-реконнект + ручной) создают
+        // два TcpClient, первый из которых утекает без Dispose.
+        if (Status == ConnectionStatus.Connected || Status == ConnectionStatus.Connecting)
             return;
-        
+
         _host = host;
         _port = port;
         Status = ConnectionStatus.Connecting;

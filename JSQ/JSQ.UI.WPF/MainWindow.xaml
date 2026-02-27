@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:JSQ.UI.WPF.ViewModels"
+        xmlns:conv="clr-namespace:JSQ.UI.WPF.Converters"
         mc:Ignorable="d"
         Title="JSQ Experiment Controller" Height="800" Width="1400"
         Icon="Assets/AppIcon.ico"
@@ -12,37 +13,36 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:RowBackgroundConverter x:Key="RowBgConverter"/>
 
+        <!-- ── Стиль строки канала ──────────────────────────────────────────── -->
+        <!-- Фон рассчитывается единым конвертером:                             -->
+        <!--   Alarm/Warning > пользовательский цвет > запись > зебра > белый  -->
         <Style x:Key="ChannelRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <MultiBinding Converter="{StaticResource RowBgConverter}">
+                        <Binding Path="RowHighlightColor"/>
+                        <Binding Path="Status"/>
+                        <Binding Path="IsRecording"/>
+                        <Binding RelativeSource="{RelativeSource Self}"
+                                 Path="(ItemsControl.AlternationIndex)"/>
+                    </MultiBinding>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
+                <!-- Общие каналы — полужирный шрифт -->
                 <DataTrigger Binding="{Binding IsCommon}" Value="True">
                     <Setter Property="FontWeight" Value="SemiBold"/>
                 </DataTrigger>
-                <!-- данные идут, запись не ведётся → серая строка -->
-                <DataTrigger Binding="{Binding Status}" Value="OK">
-                    <Setter Property="Background" Value="#F5F5F5"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="Warning">
-                    <Setter Property="Background" Value="#FFF9C4"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Status}" Value="Alarm">
-                    <Setter Property="Background" Value="#FFCDD2"/>
-                </DataTrigger>
+                <!-- NoData — серый текст (фон обрабатывает конвертер) -->
                 <DataTrigger Binding="{Binding Status}" Value="NoData">
-                    <Setter Property="Background" Value="#F5F5F5"/>
                     <Setter Property="Foreground" Value="#9E9E9E"/>
                 </DataTrigger>
-                <!-- запись активна + OK → зелёная строка (перекрывает trigger выше) -->
-                <MultiDataTrigger>
-                    <MultiDataTrigger.Conditions>
-                        <Condition Binding="{Binding Status}" Value="OK"/>
-                        <Condition Binding="{Binding IsRecording}" Value="True"/>
-                    </MultiDataTrigger.Conditions>
-                    <Setter Property="Background" Value="#F1F8F1"/>
-                </MultiDataTrigger>
             </Style.Triggers>
         </Style>
 
+        <!-- ── Точка статуса ────────────────────────────────────────────────── -->
         <Style x:Key="StatusDotStyle" TargetType="Ellipse">
             <Setter Property="Fill" Value="#BDBDBD"/>
             <Style.Triggers>
@@ -52,7 +52,6 @@
                 <DataTrigger Binding="{Binding Status}" Value="Alarm">
                     <Setter Property="Fill" Value="#F44336"/>
                 </DataTrigger>
-                <!-- Зелёная точка только при активной записи + OK -->
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
                         <Condition Binding="{Binding Status}" Value="OK"/>
@@ -62,6 +61,92 @@
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
+
+        <!-- ── Контекстное меню: пометить строку цветом ────────────────────── -->
+        <ContextMenu x:Key="ChannelColorMenu">
+            <MenuItem Header="Пометить цветом">
+                <MenuItem Tag="#FFF59D"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#FFF59D"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Жёлтый"     VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#FFCC80"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#FFCC80"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Оранжевый"  VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#EF9A9A"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#EF9A9A"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Красный"    VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#F48FB1"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#F48FB1"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Розовый"    VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#CE93D8"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#CE93D8"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Фиолетовый" VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#90CAF9"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#90CAF9"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Синий"      VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#80DEEA"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#80DEEA"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Голубой"    VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#80CBC4"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#80CBC4"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Мятный"     VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#A5D6A7"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#A5D6A7"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Зелёный"    VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#E6EE9C"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#E6EE9C"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Лаймовый"   VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#BCAAA4"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#BCAAA4"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Коричневый" VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <MenuItem Tag="#CFD8DC"  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <Rectangle Width="16" Height="16" Fill="#CFD8DC"  Stroke="#CCC" StrokeThickness="0.5" Margin="0,0,6,0"/>
+                        <TextBlock  Text="Серый"      VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Tag=""  Click="HighlightColor_Click">
+                    <MenuItem.Header><StackPanel Orientation="Horizontal">
+                        <TextBlock  Text="✕" Width="16" TextAlignment="Center" FontSize="11" Margin="0,0,6,0"
+                                    VerticalAlignment="Center" Foreground="#888"/>
+                        <TextBlock  Text="Сбросить цвет" VerticalAlignment="Center"/>
+                    </StackPanel></MenuItem.Header>
+                </MenuItem>
+            </MenuItem>
+        </ContextMenu>
     </Window.Resources>
 
     <Grid>
@@ -166,13 +251,16 @@
                         <DataGrid x:Name="PostADataGrid" Grid.Row="2" ItemsSource="{Binding PostAFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding IsAnyPostRunning}"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
+                                  AlternationCount="2"
                                   EnableRowVirtualization="True" EnableColumnVirtualization="True"
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                   ScrollViewer.CanContentScroll="True"
                                   RowStyle="{StaticResource ChannelRowStyle}"
+                                  ContextMenu="{StaticResource ChannelColorMenu}"
                                   Sorting="ChannelGrid_Sorting"
                                   AllowDrop="True"
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
+                                  PreviewMouseRightButtonDown="ChannelGrid_PreviewMouseRightButtonDown"
                                   MouseMove="ChannelGrid_MouseMove"
                                   Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
@@ -289,13 +377,16 @@
                         <DataGrid x:Name="PostBDataGrid" Grid.Row="2" ItemsSource="{Binding PostBFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding IsAnyPostRunning}"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
+                                  AlternationCount="2"
                                   EnableRowVirtualization="True" EnableColumnVirtualization="True"
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                   ScrollViewer.CanContentScroll="True"
                                   RowStyle="{StaticResource ChannelRowStyle}"
+                                  ContextMenu="{StaticResource ChannelColorMenu}"
                                   Sorting="ChannelGrid_Sorting"
                                   AllowDrop="True"
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
+                                  PreviewMouseRightButtonDown="ChannelGrid_PreviewMouseRightButtonDown"
                                   MouseMove="ChannelGrid_MouseMove"
                                   Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">
@@ -412,13 +503,16 @@
                         <DataGrid x:Name="PostCDataGrid" Grid.Row="2" ItemsSource="{Binding PostCFiltered}"
                                   AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding IsAnyPostRunning}"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
+                                  AlternationCount="2"
                                   EnableRowVirtualization="True" EnableColumnVirtualization="True"
                                   VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                                   ScrollViewer.CanContentScroll="True"
                                   RowStyle="{StaticResource ChannelRowStyle}"
+                                  ContextMenu="{StaticResource ChannelColorMenu}"
                                   Sorting="ChannelGrid_Sorting"
                                   AllowDrop="True"
                                   PreviewMouseLeftButtonDown="ChannelGrid_PreviewMouseLeftButtonDown"
+                                  PreviewMouseRightButtonDown="ChannelGrid_PreviewMouseRightButtonDown"
                                   MouseMove="ChannelGrid_MouseMove"
                                   Drop="ChannelGrid_Drop"
                                   MouseDoubleClick="ChannelDataGrid_MouseDoubleClick">

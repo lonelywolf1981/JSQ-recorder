@@ -46,6 +46,11 @@ public partial class ChannelStatus : ObservableObject
     /// Признак общего канала (доступен всем постам).
     /// </summary>
     [ObservableProperty] private bool _isCommon;
+
+    /// <summary>
+    /// Пользовательский цвет подсветки строки (hex, например "#FFF59D"). Null = нет подсветки.
+    /// </summary>
+    [ObservableProperty] private string? _rowHighlightColor;
 }
 
 /// <summary>

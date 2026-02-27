@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using JSQ.Core.Models;
 using JSQ.UI.WPF.ViewModels;
 
@@ -155,6 +156,60 @@ public partial class MainWindow : Window
     private void ChannelGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _dragStartPoint = e.GetPosition(this);
+    }
+
+    /// <summary>
+    /// При правом клике: если кликнутая строка не входит в текущее выделение —
+    /// выбираем только её (стандартное поведение контекстного меню).
+    /// </summary>
+    private void ChannelGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!(sender is DataGrid grid))
+            return;
+
+        var hit = VisualTreeHelper.HitTest(grid, e.GetPosition(grid));
+        if (hit == null)
+            return;
+
+        // Поднимаемся по визуальному дереву до DataGridRow
+        DependencyObject obj = hit.VisualHit;
+        while (obj != null && !(obj is DataGridRow))
+            obj = VisualTreeHelper.GetParent(obj);
+
+        var row = obj as DataGridRow;
+        if (row == null || row.Item == null)
+            return;
+
+        if (!grid.SelectedItems.Contains(row.Item))
+        {
+            grid.UnselectAll();
+            grid.SelectedItem = row.Item;
+        }
+    }
+
+    /// <summary>
+    /// Применяет выбранный hex-цвет (или сброс при пустом теге) ко всем
+    /// выделенным строкам того DataGrid, из которого открыто контекстное меню.
+    /// </summary>
+    private void HighlightColor_Click(object sender, RoutedEventArgs e)
+    {
+        if (!(sender is MenuItem menuItem))
+            return;
+
+        // Поднимаемся по логическому дереву до ContextMenu
+        DependencyObject parent = menuItem;
+        while (parent != null && !(parent is ContextMenu))
+            parent = LogicalTreeHelper.GetParent(parent);
+
+        var grid = (parent as ContextMenu)?.PlacementTarget as DataGrid;
+        if (grid == null)
+            return;
+
+        var color = menuItem.Tag as string;
+        var colorValue = string.IsNullOrEmpty(color) ? null : color;
+
+        foreach (var ch in grid.SelectedItems.OfType<ChannelStatus>())
+            ch.RowHighlightColor = colorValue;
     }
 
     private void ChannelGrid_MouseMove(object sender, MouseEventArgs e)

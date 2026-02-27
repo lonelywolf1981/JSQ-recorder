@@ -53,8 +53,8 @@ public class AggregationService : IAggregationService
     private readonly HashSet<int> _highPrecisionChannels;
     private readonly ConcurrentDictionary<int, WindowState> _windows = new();
     private readonly object _lock = new();
-    private int _completedWindows;
-    private int _totalSamples;
+    private int _completedWindows; // доступ через Interlocked
+    private int _totalSamples;     // доступ через Interlocked или _lock
     private DateTime _lastAggregationTime = DateTime.MinValue;
     
     public AggregationService(
@@ -69,16 +69,15 @@ public class AggregationService : IAggregationService
     
     public void AddSample(Sample sample)
     {
-        if (!sample.IsValid)
-            return;
-        
-        // Вычисляем окно времени (округление вниз до интервала)
+        // Невалидные сэмплы (-99) передаём в окно — AddValue учитывает их в InvalidCount,
+        // что позволяет QualityFlag корректно отражать долю плохих данных.
+        // Ранний return здесь убран намеренно: без него InvalidCount всегда был бы 0.
         var intervalSeconds = GetChannelIntervalSeconds(sample.ChannelIndex);
         var windowStart = GetWindowStart(sample.Timestamp, intervalSeconds);
-        
+
         var window = _windows.GetOrAdd(sample.ChannelIndex, _ => new WindowState())
             .GetOrCreateWindow(windowStart, intervalSeconds);
-        
+
         lock (_lock)
         {
             window.AddValue(sample.Value);
@@ -102,7 +101,7 @@ public class AggregationService : IAggregationService
                 if (aggregate != null)
                 {
                     ready.Add(aggregate);
-                    _completedWindows++;
+                    System.Threading.Interlocked.Increment(ref _completedWindows);
                 }
             }
         }
@@ -128,7 +127,7 @@ public class AggregationService : IAggregationService
                 if (aggregate != null)
                 {
                     all.Add(aggregate);
-                    _completedWindows++;
+                    System.Threading.Interlocked.Increment(ref _completedWindows);
                 }
             }
             
@@ -158,11 +157,13 @@ public class AggregationService : IAggregationService
 
     private static DateTime GetWindowStart(DateTime timestamp, int intervalSeconds)
     {
-        // Округление вниз до ближайшего интервала
+        // Округление вниз до ближайшего интервала.
+        // Используем Unspecified (не Local) — JsqClock.Now возвращает Unspecified,
+        // смешение Kind создаёт неоднозначность при сериализации.
         var ticks = timestamp.Ticks;
         var intervalTicks = TimeSpan.FromSeconds(intervalSeconds).Ticks;
         var windowTicks = (ticks / intervalTicks) * intervalTicks;
-        return new DateTime(windowTicks, DateTimeKind.Local);
+        return new DateTime(windowTicks, DateTimeKind.Unspecified);
     }
     
     /// <summary>

@@ -11,39 +11,20 @@ namespace JSQ.Rules;
 /// </summary>
 public interface IAnomalyDetector
 {
-    /// <summary>
-    /// Загрузить правила
-    /// </summary>
     void LoadRules(IEnumerable<AnomalyRule> rules);
-    
-    /// <summary>
-    /// Проверить значение на аномалии
-    /// </summary>
     IEnumerable<AnomalyEvent> CheckValue(int channelIndex, double value, DateTime timestamp);
-    
-    /// <summary>
-    /// Проверить агрегированные данные
-    /// </summary>
     IEnumerable<AnomalyEvent> CheckAggregate(AggregatedValue aggregate);
-    
-    /// <summary>
-    /// Проверить таймауты (отсутствие данных)
-    /// </summary>
     IEnumerable<AnomalyEvent> CheckTimeouts(DateTime now);
-    
-    /// <summary>
-    /// Подтвердить аномалию
-    /// </summary>
     void Acknowledge(string eventId, string user);
-    
-    /// <summary>
-    /// Получить активные аномалии
-    /// </summary>
     IEnumerable<AnomalyEvent> GetActiveAnomalies();
 }
 
 /// <summary>
-/// Реализация детектора аномалий
+/// Реализация детектора аномалий.
+///
+/// Thread safety: CheckValue вызывается из потока приёма данных,
+/// CheckTimeouts — из фонового цикла здоровья. Оба метода синхронизированы
+/// через _checkLock чтобы избежать гонок на ChannelState.
 /// </summary>
 public class AnomalyDetector : IAnomalyDetector
 {
@@ -51,44 +32,59 @@ public class AnomalyDetector : IAnomalyDetector
     private readonly ConcurrentDictionary<string, AnomalyEvent> _activeAnomalies = new();
     private readonly ConcurrentDictionary<int, ChannelState> _channelStates = new();
     private readonly string _experimentId;
-    
+
+    // Единый лок для CheckValue и CheckTimeouts — предотвращает гонки на ChannelState
+    private readonly object _checkLock = new();
+
     public AnomalyDetector(string experimentId)
     {
         _experimentId = experimentId;
     }
-    
+
     public void LoadRules(IEnumerable<AnomalyRule> rules)
     {
+        var now = JsqClock.Now;
         foreach (var rule in rules)
         {
             if (rule.Enabled)
             {
                 _rules[rule.ChannelIndex] = rule;
-                _channelStates[rule.ChannelIndex] = new ChannelState();
+                // Инициализируем LastCheckTime = now, чтобы NoData-таймаут начал отсчёт
+                // с момента загрузки правил, а не с первого пакета данных.
+                // Это позволяет обнаружить мёртвый канал, который никогда не присылал данных.
+                _channelStates[rule.ChannelIndex] = new ChannelState { LastCheckTime = now };
             }
         }
     }
-    
+
     public IEnumerable<AnomalyEvent> CheckValue(int channelIndex, double value, DateTime timestamp)
     {
         if (!_rules.TryGetValue(channelIndex, out var rule))
             return Array.Empty<AnomalyEvent>();
-        
+
+        lock (_checkLock)
+        {
+            return CheckValueLocked(channelIndex, rule, value, timestamp);
+        }
+    }
+
+    private List<AnomalyEvent> CheckValueLocked(int channelIndex, AnomalyRule rule, double value, DateTime timestamp)
+    {
         var events = new List<AnomalyEvent>();
         var state = _channelStates.GetOrAdd(channelIndex, _ => new ChannelState());
-        
+
         // Проверка минимума
         if (rule.MinLimit.HasValue)
         {
             var hysteresis = rule.MinHysteresis ?? 0;
             var effectiveMin = rule.MinLimit.Value - hysteresis;
-            
+
             if (value < effectiveMin)
             {
                 state.MinViolationCount++;
                 if (state.MinViolationCount >= rule.DebounceCount && !state.HasActiveMinViolation)
                 {
-                    var evt = CreateEvent(channelIndex, rule.ChannelName, AnomalyType.MinViolation, 
+                    var evt = CreateEvent(channelIndex, rule.ChannelName, AnomalyType.MinViolation,
                         value, rule.MinLimit, $"Значение {value:F3} ниже минимума {rule.MinLimit:F3}");
                     events.Add(evt);
                     state.HasActiveMinViolation = true;
@@ -101,7 +97,6 @@ public class AnomalyDetector : IAnomalyDetector
                 {
                     ClearViolation(channelIndex, AnomalyType.MinViolation);
                     state.HasActiveMinViolation = false;
-                    // Значение вернулось в допустимые пределы — фиксируем восстановление
                     if (!state.HasActiveMaxViolation)
                     {
                         var restored = CreateEvent(channelIndex, rule.ChannelName, AnomalyType.LimitsRestored,
@@ -136,7 +131,6 @@ public class AnomalyDetector : IAnomalyDetector
                 {
                     ClearViolation(channelIndex, AnomalyType.MaxViolation);
                     state.HasActiveMaxViolation = false;
-                    // Значение вернулось в допустимые пределы — фиксируем восстановление
                     if (!state.HasActiveMinViolation)
                     {
                         var restored = CreateEvent(channelIndex, rule.ChannelName, AnomalyType.LimitsRestored,
@@ -146,7 +140,7 @@ public class AnomalyDetector : IAnomalyDetector
                 }
             }
         }
-        
+
         // Проверка дельты (скачка)
         if (rule.MaxDelta.HasValue && state.LastValue.HasValue)
         {
@@ -159,12 +153,11 @@ public class AnomalyDetector : IAnomalyDetector
                 events.Add(evt);
             }
         }
-        
+
         state.LastValue = value;
         state.LastCheckTime = timestamp;
 
-        // Немедленно генерируем DataRestored при получении данных после NoData,
-        // не дожидаясь следующего вызова CheckTimeouts
+        // Восстановление после NoData при получении первых валидных данных
         if (state.HasNoDataEvent)
         {
             ClearViolation(channelIndex, AnomalyType.NoData);
@@ -176,19 +169,18 @@ public class AnomalyDetector : IAnomalyDetector
 
         return events;
     }
-    
+
     public IEnumerable<AnomalyEvent> CheckAggregate(AggregatedValue aggregate)
     {
         if (!_rules.TryGetValue(aggregate.ChannelIndex, out var rule))
             return Array.Empty<AnomalyEvent>();
-        
+
         var events = new List<AnomalyEvent>();
-        
-        // Проверка качества
+
         if (aggregate.QualityFlag == 0)
         {
             var evt = CreateEvent(aggregate.ChannelIndex, rule.ChannelName, AnomalyType.QualityDegraded,
-                aggregate.Avg, null, 
+                aggregate.Avg, null,
                 $"Ухудшение качества данных: {aggregate.SampleCount} из {aggregate.TotalCount} валидных");
             events.Add(evt);
         }
@@ -199,49 +191,52 @@ public class AnomalyDetector : IAnomalyDetector
                 $"Плохое качество данных: {aggregate.SampleCount} из {aggregate.TotalCount} валидных");
             events.Add(evt);
         }
-        
+
         return events;
     }
-    
+
     public IEnumerable<AnomalyEvent> CheckTimeouts(DateTime now)
     {
         var events = new List<AnomalyEvent>();
-        
-        foreach (var kvp in _rules)
-        {
-            var rule = kvp.Value;
-            if (!rule.NoDataTimeoutSec.HasValue)
-                continue;
-            
-            var state = _channelStates.GetOrAdd(rule.ChannelIndex, _ => new ChannelState());
-            
-            if (state.LastCheckTime.HasValue)
-            {
-                var elapsed = (now - state.LastCheckTime.Value).TotalSeconds;
-                if (elapsed > rule.NoDataTimeoutSec.Value && !state.HasNoDataEvent)
-                {
-                    var evt = CreateEvent(rule.ChannelIndex, rule.ChannelName, AnomalyType.NoData,
-                        null, rule.NoDataTimeoutSec,
-                        $"Отсутствие данных более {rule.NoDataTimeoutSec} сек (прошло {elapsed:F0} сек)");
-                    events.Add(evt);
-                    state.HasNoDataEvent = true;
-                }
-                else if (elapsed <= rule.NoDataTimeoutSec.Value && state.HasNoDataEvent)
-                {
-                    ClearViolation(rule.ChannelIndex, AnomalyType.NoData);
-                    state.HasNoDataEvent = false;
 
-                    // Канал снова передаёт данные — фиксируем восстановление
-                    var recovery = CreateEvent(rule.ChannelIndex, rule.ChannelName, AnomalyType.DataRestored,
-                        null, null, $"Данные восстановлены: {rule.ChannelName}");
-                    events.Add(recovery);
+        lock (_checkLock)
+        {
+            foreach (var kvp in _rules)
+            {
+                var rule = kvp.Value;
+                if (!rule.NoDataTimeoutSec.HasValue)
+                    continue;
+
+                var state = _channelStates.GetOrAdd(rule.ChannelIndex, _ => new ChannelState());
+
+                if (state.LastCheckTime.HasValue)
+                {
+                    var elapsed = (now - state.LastCheckTime.Value).TotalSeconds;
+                    if (elapsed > rule.NoDataTimeoutSec.Value && !state.HasNoDataEvent)
+                    {
+                        var evt = CreateEvent(rule.ChannelIndex, rule.ChannelName, AnomalyType.NoData,
+                            null, rule.NoDataTimeoutSec,
+                            $"Отсутствие данных более {rule.NoDataTimeoutSec} сек (прошло {elapsed:F0} сек)");
+                        events.Add(evt);
+                        state.HasNoDataEvent = true;
+                    }
+                    else if (elapsed <= rule.NoDataTimeoutSec.Value && state.HasNoDataEvent)
+                    {
+                        // Данные снова поступают (этот путь также обрабатывается в CheckValue,
+                        // дублирование защищено флагом HasNoDataEvent)
+                        ClearViolation(rule.ChannelIndex, AnomalyType.NoData);
+                        state.HasNoDataEvent = false;
+                        var recovery = CreateEvent(rule.ChannelIndex, rule.ChannelName, AnomalyType.DataRestored,
+                            null, null, $"Данные восстановлены: {rule.ChannelName}");
+                        events.Add(recovery);
+                    }
                 }
             }
         }
-        
+
         return events;
     }
-    
+
     public void Acknowledge(string eventId, string user)
     {
         if (_activeAnomalies.TryGetValue(eventId, out var evt))
@@ -252,26 +247,26 @@ public class AnomalyDetector : IAnomalyDetector
             evt.EndTime = JsqClock.Now;
         }
     }
-    
+
     public IEnumerable<AnomalyEvent> GetActiveAnomalies()
     {
         return _activeAnomalies.Values.Where(e => e.EndTime == null);
     }
-    
+
     private AnomalyEvent CreateEvent(int channelIndex, string channelName, AnomalyType type,
         double? value, double? threshold, string message, double? delta = null)
     {
         var severity = type switch
         {
-            AnomalyType.MinViolation or AnomalyType.MaxViolation => "Warning",  // жёлтый
+            AnomalyType.MinViolation or AnomalyType.MaxViolation => "Warning",
             AnomalyType.DeltaSpike => "Warning",
-            AnomalyType.NoData => "Critical",                                   // красный — отключение канала
-            AnomalyType.DataRestored => "Info",                                 // зелёный
-            AnomalyType.LimitsRestored => "Info",                               // зелёный — возврат в пределы
+            AnomalyType.NoData => "Critical",
+            AnomalyType.DataRestored => "Info",
+            AnomalyType.LimitsRestored => "Info",
             AnomalyType.QualityBad => "Critical",
             _ => "Warning"
         };
-        
+
         var evt = new AnomalyEvent
         {
             ExperimentId = _experimentId,
@@ -285,35 +280,35 @@ public class AnomalyDetector : IAnomalyDetector
             Message = message,
             Timestamp = JsqClock.Now
         };
-        
+
         _activeAnomalies[evt.Id] = evt;
-        
+
         return evt;
     }
-    
+
     private void ClearViolation(int channelIndex, AnomalyType type)
     {
+        // Берём снимок ID, затем обновляем — не итерируемся по Values напрямую
         var toClear = _activeAnomalies.Values
             .Where(e => e.ChannelIndex == channelIndex && e.AnomalyType == type && e.EndTime == null)
+            .Select(e => e.Id)
             .ToList();
-        
-        foreach (var evt in toClear)
+
+        foreach (var id in toClear)
         {
-            evt.EndTime = JsqClock.Now;
+            if (_activeAnomalies.TryGetValue(id, out var evt))
+                evt.EndTime = JsqClock.Now;
         }
     }
-    
-    /// <summary>
-    /// Состояние канала для отслеживания нарушений
-    /// </summary>
+
     private class ChannelState
     {
         public double? LastValue { get; set; }
         public DateTime? LastCheckTime { get; set; }
-        
+
         public int MinViolationCount { get; set; }
         public int MaxViolationCount { get; set; }
-        
+
         public bool HasActiveMinViolation { get; set; }
         public bool HasActiveMaxViolation { get; set; }
         public bool HasNoDataEvent { get; set; }

@@ -60,10 +60,16 @@
                           AutoGenerateColumns="False"
                           CanUserAddRows="False"
                           IsReadOnly="False"
-                          SelectionMode="Extended">
+                          SelectionMode="Extended"
+                          AlternationCount="2">
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow">
                             <Style.Triggers>
+                                <!-- Зебра (нечётные строки) -->
+                                <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                    <Setter Property="Background" Value="#F5F5F5"/>
+                                </Trigger>
+                                <!-- Занятый другим постом — перекрывает зебру -->
                                 <DataTrigger Binding="{Binding IsTakenByOtherPost}" Value="True">
                                     <Setter Property="Background" Value="#EEEEEE"/>
                                     <Setter Property="Foreground" Value="#9E9E9E"/>
