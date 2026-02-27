@@ -134,3 +134,6 @@ trace_report_known_findings.md
 *.db
 *.db-wal
 *.db-shm
+
+# === Релизные артефакты (генерируются make_release.ps1) ===
+release/
