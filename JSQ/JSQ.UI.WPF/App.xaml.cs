@@ -40,10 +40,18 @@ public partial class App : Application
 
         try
         {
-            if (AutoUpdateBootstrap.TryLaunchPendingUpdater())
+            if (AutoUpdateBootstrap.TryLaunchPendingUpdater(out var updateStartIssue))
             {
                 Shutdown(0);
                 return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(updateStartIssue))
+            {
+                MessageBox.Show(updateStartIssue,
+                    "JSQ - Автообновление",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
 
             var services = new ServiceCollection();

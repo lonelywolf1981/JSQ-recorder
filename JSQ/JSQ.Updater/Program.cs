@@ -96,12 +96,13 @@ internal static class Program
             if (!string.IsNullOrWhiteSpace(restartPath) && File.Exists(restartPath))
                 try
                 {
+                    // UseShellExecute = true обязателен для WPF-приложений:
+                    // с false + CreateNoWindow главное окно может не появиться.
                     Process.Start(new ProcessStartInfo
                     {
                         FileName         = restartPath,
                         WorkingDirectory = Path.GetDirectoryName(restartPath)!,
-                        UseShellExecute  = false,
-                        CreateNoWindow   = true
+                        UseShellExecute  = true
                     });
                 }
                 catch { }

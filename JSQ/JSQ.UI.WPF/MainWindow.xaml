@@ -258,7 +258,7 @@
                         </Grid>
 
                         <DataGrid x:Name="PostADataGrid" Grid.Row="2" ItemsSource="{Binding PostAFiltered}"
-                                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding IsAnyPostRunning}"
+                                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding PostA.IsRunning}"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
                                   AlternationCount="2"
                                   EnableRowVirtualization="True" EnableColumnVirtualization="True"
@@ -280,7 +280,7 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                      IsEnabled="{Binding DataContext.CanEditChannelLists, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                      IsEnabled="{Binding DataContext.CanEditPostA, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
@@ -327,9 +327,9 @@
                 <!-- Перенос A <-> B -->
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,0,0">
                     <Button Content=">>" ToolTip="A в B" Padding="6,8" Margin="0,0,0,6" Click="MoveAToB_Click"
-                            IsEnabled="{Binding CanEditChannelLists}"/>
+                            IsEnabled="{Binding CanTransferAB}"/>
                     <Button Content="&lt;&lt;" ToolTip="B в A" Padding="6,8" Click="MoveBToA_Click"
-                            IsEnabled="{Binding CanEditChannelLists}"/>
+                            IsEnabled="{Binding CanTransferAB}"/>
                 </StackPanel>
 
                 <!-- Пост B -->
@@ -386,7 +386,7 @@
                         </Grid>
 
                         <DataGrid x:Name="PostBDataGrid" Grid.Row="2" ItemsSource="{Binding PostBFiltered}"
-                                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding IsAnyPostRunning}"
+                                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding PostB.IsRunning}"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
                                   AlternationCount="2"
                                   EnableRowVirtualization="True" EnableColumnVirtualization="True"
@@ -408,7 +408,7 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                      IsEnabled="{Binding DataContext.CanEditChannelLists, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                      IsEnabled="{Binding DataContext.CanEditPostB, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
@@ -455,9 +455,9 @@
                 <!-- Перенос B <-> C -->
                 <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,0,0">
                     <Button Content=">>" ToolTip="B в C" Padding="6,8" Margin="0,0,0,6" Click="MoveBToC_Click"
-                            IsEnabled="{Binding CanEditChannelLists}"/>
+                            IsEnabled="{Binding CanTransferBC}"/>
                     <Button Content="&lt;&lt;" ToolTip="C в B" Padding="6,8" Click="MoveCToB_Click"
-                            IsEnabled="{Binding CanEditChannelLists}"/>
+                            IsEnabled="{Binding CanTransferBC}"/>
                 </StackPanel>
 
                 <!-- Пост C -->
@@ -514,7 +514,7 @@
                         </Grid>
 
                         <DataGrid x:Name="PostCDataGrid" Grid.Row="2" ItemsSource="{Binding PostCFiltered}"
-                                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding IsAnyPostRunning}"
+                                  AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="{Binding PostC.IsRunning}"
                                   SelectionMode="Extended" SelectionUnit="FullRow"
                                   AlternationCount="2"
                                   EnableRowVirtualization="True" EnableColumnVirtualization="True"
@@ -536,7 +536,7 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                      IsEnabled="{Binding DataContext.CanEditChannelLists, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                      IsEnabled="{Binding DataContext.CanEditPostC, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>

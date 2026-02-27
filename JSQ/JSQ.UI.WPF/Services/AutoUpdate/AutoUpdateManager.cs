@@ -104,7 +104,11 @@ public sealed class AutoUpdateManager : IDisposable
             var cachedPackageName = $"update-{manifest.Version}.zip";
             var cachedPackage = Path.Combine(_cacheDirectory, cachedPackageName);
 
-            var needsCopy = !File.Exists(cachedPackage) || new FileInfo(cachedPackage).Length != new FileInfo(sourcePackage).Length;
+            // Пересчитываем хэш кэшированного файла чтобы обнаружить битые копии
+            // (прерванная загрузка с сети даёт файл верного размера, но неверного хэша).
+            var needsCopy = !File.Exists(cachedPackage)
+                || new FileInfo(cachedPackage).Length != new FileInfo(sourcePackage).Length
+                || !ValidateHash(cachedPackage, manifest.Sha256);
             if (needsCopy)
                 File.Copy(sourcePackage, cachedPackage, overwrite: true);
 

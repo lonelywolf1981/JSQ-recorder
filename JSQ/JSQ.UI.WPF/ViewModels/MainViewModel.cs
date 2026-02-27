@@ -98,8 +98,16 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Признак того, что хотя бы один пост ведет запись.</summary>
     public bool IsAnyPostRunning => PostA.IsRunning || PostB.IsRunning || PostC.IsRunning;
 
-    /// <summary>Разрешено ли редактирование списков каналов.</summary>
-    public bool CanEditChannelLists => !IsAnyPostRunning;
+    /// <summary>Разрешено ли редактирование списка каналов поста A.</summary>
+    public bool CanEditPostA => !PostA.IsRunning;
+    /// <summary>Разрешено ли редактирование списка каналов поста B.</summary>
+    public bool CanEditPostB => !PostB.IsRunning;
+    /// <summary>Разрешено ли редактирование списка каналов поста C.</summary>
+    public bool CanEditPostC => !PostC.IsRunning;
+    /// <summary>Разрешён ли перенос каналов A ↔ B (оба поста должны быть не в записи).</summary>
+    public bool CanTransferAB => !PostA.IsRunning && !PostB.IsRunning;
+    /// <summary>Разрешён ли перенос каналов B ↔ C (оба поста должны быть не в записи).</summary>
+    public bool CanTransferBC => !PostB.IsRunning && !PostC.IsRunning;
 
     /// <summary>Текстовый статус для блока "Здоровье системы".</summary>
     public string SystemHealthStatusText => SystemHealth.OverallStatus switch
@@ -977,7 +985,11 @@ public partial class MainViewModel : ObservableObject
     private void NotifyRunningChanged()
     {
         OnPropertyChanged(nameof(IsAnyPostRunning));
-        OnPropertyChanged(nameof(CanEditChannelLists));
+        OnPropertyChanged(nameof(CanEditPostA));
+        OnPropertyChanged(nameof(CanEditPostB));
+        OnPropertyChanged(nameof(CanEditPostC));
+        OnPropertyChanged(nameof(CanTransferAB));
+        OnPropertyChanged(nameof(CanTransferBC));
         OpenSettingsCommand.NotifyCanExecuteChanged();
         _autoUpdateManager.NotifyRuntimeStateChanged();
     }
